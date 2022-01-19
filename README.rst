@@ -3,8 +3,7 @@ ophyd
 
 |code_ci| |docs_ci| |coverage| |pypi_version| |license|
 
-This is where you should write a short paragraph that describes what your module does,
-how it does it, and why people should use it.
+Ideas for ophyd v2, will be merged with bluesky/ophyd when ready
 
 ============== ==============================================================
 PyPI           ``pip install ophyd``
@@ -13,20 +12,11 @@ Documentation  https://dls-controls.github.io/ophyd
 Releases       https://github.com/dls-controls/ophyd/releases
 ============== ==============================================================
 
-This is where you should put some images or code snippets that illustrate
-some relevant examples. If it is a library then you might put some
-introductory code here:
+The main aims of this new version are:
 
-.. code:: python
-
-    from ophyd.hello import HelloClass
-
-    hello = HelloClass("me")
-    print(hello.format_greeting())
-
-Or if it is a commandline tool then you might put some example commands here::
-
-    ophyd person --times=2
+- Split Logic and Interface into separate objects
+- Make all Logic async
+- Provide useful helpers for flyscans
 
 .. |code_ci| image:: https://github.com/dls-controls/ophyd/workflows/Code%20CI/badge.svg?branch=master
     :target: https://github.com/dls-controls/ophyd/actions?query=workflow%3A%22Code+CI%22
