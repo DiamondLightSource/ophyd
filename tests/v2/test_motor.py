@@ -8,7 +8,6 @@ from ophyd.v2.hardware import motor
 from ophyd.v2.providers.sim import SimProvider
 
 
-@pytest.mark.asyncio
 async def test_motor_moving():
     async with SignalCollector(), NamedAbilities():
         SignalCollector.add_provider(SimProvider(), set_default=True)
@@ -50,6 +49,4 @@ async def test_motor_moving():
     assert s.done
     with pytest.raises(RuntimeError) as cm:
         await s
-    print("Almost")
     assert str(cm.value) == "Motor was stopped"
-    print("Done")

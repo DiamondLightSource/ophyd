@@ -17,8 +17,8 @@ using ``autoclass`` and ``autofunction`` directives instead of
 
     Version number as calculated by https://github.com/dls-controls/versiongit
 
-.. automodule:: ophyd.hello
+.. automodule:: ophyd.v2
     :members:
 
-    ``ophyd.hello``
+    ``ophyd.v2``
     -----------------------------------------
