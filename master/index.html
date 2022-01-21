@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ophyd &mdash; ophyd 0.0+untagged.g7b48765 documentation</title>
+  <title>ophyd &mdash; ophyd 0.0+untagged.gbb2444d documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
@@ -90,8 +90,7 @@
   <section id="ophyd">
 <h1>ophyd<a class="headerlink" href="#ophyd" title="Permalink to this headline"></a></h1>
 <p><a class="reference external" href="https://github.com/dls-controls/ophyd/actions?query=workflow%3A%22Code+CI%22"><img alt="Code CI" src="https://github.com/dls-controls/ophyd/workflows/Code%20CI/badge.svg?branch=master" /></a> <a class="reference external" href="https://github.com/dls-controls/ophyd/actions?query=workflow%3A%22Docs+CI%22"><img alt="Docs CI" src="https://github.com/dls-controls/ophyd/workflows/Docs%20CI/badge.svg?branch=master" /></a> <a class="reference external" href="https://codecov.io/gh/dls-controls/ophyd"><img alt="Test Coverage" src="https://codecov.io/gh/dls-controls/ophyd/branch/master/graph/badge.svg" /></a> <a class="reference external" href="https://pypi.org/project/ophyd"><img alt="Latest PyPI version" src="https://img.shields.io/pypi/v/ophyd.svg" /></a> <a class="reference external" href="https://opensource.org/licenses/Apache-2.0"><img alt="Apache License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a></p>
-<p>This is where you should write a short paragraph that describes what your module does,
-how it does it, and why people should use it.</p>
+<p>Ideas for ophyd v2, will be merged with bluesky/ophyd when ready</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 18%" />
@@ -112,19 +111,12 @@ how it does it, and why people should use it.</p>
 </tr>
 </tbody>
 </table>
-<p>This is where you should put some images or code snippets that illustrate
-some relevant examples. If it is a library then you might put some
-introductory code here:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">ophyd.hello</span> <span class="kn">import</span> <span class="n">HelloClass</span>
-
-<span class="n">hello</span> <span class="o">=</span> <span class="n">HelloClass</span><span class="p">(</span><span class="s2">&quot;me&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">hello</span><span class="o">.</span><span class="n">format_greeting</span><span class="p">())</span>
-</pre></div>
-</div>
-<p>Or if it is a commandline tool then you might put some example commands here:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ophyd</span> <span class="n">person</span> <span class="o">--</span><span class="n">times</span><span class="o">=</span><span class="mi">2</span>
-</pre></div>
-</div>
+<p>The main aims of this new version are:</p>
+<ul class="simple">
+<li><p>Split into Devices (containing PV interface) and Abilities (containing the logic)</p></li>
+<li><p>Make all Abilities async</p></li>
+<li><p>Provide useful helpers for flyscans</p></li>
+</ul>
 <section id="how-the-documentation-is-structured">
 <h2>How the documentation is structured<a class="headerlink" href="#how-the-documentation-is-structured" title="Permalink to this headline"></a></h2>
 <p>Documentation is split into four categories, also accessible from links in the
@@ -172,7 +164,7 @@ side-bar.</p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="reference/api.html">API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="reference/api.html#ophyd"><code class="docutils literal notranslate"><span class="pre">ophyd</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/api.html#ophyd-hello"><code class="docutils literal notranslate"><span class="pre">ophyd.hello</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/api.html#ophyd-v2"><code class="docutils literal notranslate"><span class="pre">ophyd.v2</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="reference/contributing.html">Contributing</a><ul>

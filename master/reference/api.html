@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API &mdash; ophyd 0.0+untagged.g7b48765 documentation</title>
+  <title>API &mdash; ophyd 0.0+untagged.gbb2444d documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -60,7 +60,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#ophyd"><code class="docutils literal notranslate"><span class="pre">ophyd</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ophyd-hello"><code class="docutils literal notranslate"><span class="pre">ophyd.hello</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ophyd-v2"><code class="docutils literal notranslate"><span class="pre">ophyd.v2</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
@@ -107,50 +107,8 @@ using <code class="docutils literal notranslate"><span class="pre">autoclass</sp
 <dd><p>Version number as calculated by <a class="reference external" href="https://github.com/dls-controls/versiongit">https://github.com/dls-controls/versiongit</a></p>
 </dd></dl>
 
-<span class="target" id="module-ophyd.hello"></span><section id="ophyd-hello">
-<h2><code class="docutils literal notranslate"><span class="pre">ophyd.hello</span></code><a class="headerlink" href="#ophyd-hello" title="Permalink to this headline"></a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="ophyd.hello.HelloClass">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ophyd.hello.</span></span><span class="sig-name descname"><span class="pre">HelloClass</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ophyd/hello.html#HelloClass"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ophyd.hello.HelloClass" title="Permalink to this definition"></a></dt>
-<dd><p>A class whose only purpose in life is to say hello</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>name</strong> – The initial value of the name of the person who gets greeted</p>
-</dd>
-</dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="ophyd.hello.HelloClass.name">
-<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#ophyd.hello.HelloClass.name" title="Permalink to this definition"></a></dt>
-<dd><p>The name of the person who gets greeted</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="ophyd.hello.HelloClass.format_greeting">
-<span class="sig-name descname"><span class="pre">format_greeting</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/ophyd/hello.html#HelloClass.format_greeting"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ophyd.hello.HelloClass.format_greeting" title="Permalink to this definition"></a></dt>
-<dd><p>Return a greeting for <a class="reference internal" href="#ophyd.hello.HelloClass.name" title="ophyd.hello.HelloClass.name"><code class="xref any py py-attr docutils literal notranslate"><span class="pre">name</span></code></a></p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">HelloClass</span><span class="p">(</span><span class="s2">&quot;me&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format_greeting</span><span class="p">()</span>
-<span class="go">&#39;Hello me&#39;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="ophyd.hello.say_hello_lots">
-<span class="sig-prename descclassname"><span class="pre">ophyd.hello.</span></span><span class="sig-name descname"><span class="pre">say_hello_lots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hello</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#ophyd.hello.HelloClass" title="ophyd.hello.HelloClass"><span class="pre">ophyd.hello.HelloClass</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ophyd/hello.html#say_hello_lots"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ophyd.hello.say_hello_lots" title="Permalink to this definition"></a></dt>
-<dd><p>Print lots of greetings using the given <a class="reference internal" href="#ophyd.hello.HelloClass" title="ophyd.hello.HelloClass"><code class="xref any py py-class docutils literal notranslate"><span class="pre">HelloClass</span></code></a></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hello</strong> – A <a class="reference internal" href="#ophyd.hello.HelloClass" title="ophyd.hello.HelloClass"><code class="xref any py py-class docutils literal notranslate"><span class="pre">HelloClass</span></code></a> that <a class="reference internal" href="#ophyd.hello.HelloClass.format_greeting" title="ophyd.hello.HelloClass.format_greeting"><code class="xref any py py-meth docutils literal notranslate"><span class="pre">format_greeting</span></code></a> will be called on.
-If not given, use a HelloClass with name=”me”</p></li>
-<li><p><strong>times</strong> – The number of times to call it</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
+<span class="target" id="module-ophyd.v2"></span><section id="ophyd-v2">
+<h2><code class="docutils literal notranslate"><span class="pre">ophyd.v2</span></code><a class="headerlink" href="#ophyd-v2" title="Permalink to this headline"></a></h2>
 </section>
 </section>
 
