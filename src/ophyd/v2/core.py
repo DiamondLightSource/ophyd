@@ -32,7 +32,7 @@ T = TypeVar("T")
 Callback = Callable[["Status"], NoReturn]
 
 
-class Status(Generic[T], protocols.Status):
+class Status(protocols.Status, Generic[T]):
     "Convert asyncio Task to bluesky Status interface"
 
     def __init__(
