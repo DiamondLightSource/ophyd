@@ -14,8 +14,8 @@ Releases       https://github.com/dls-controls/ophyd/releases
 
 The main aims of this new version are:
 
-- Split Logic and Interface into separate objects
-- Make all Logic async
+- Split into Devices (containing PV interface) and Abilities (containing the logic)
+- Make all Abilities async
 - Provide useful helpers for flyscans
 
 .. |code_ci| image:: https://github.com/dls-controls/ophyd/workflows/Code%20CI/badge.svg?branch=master
