@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import sys
 import threading
 from abc import ABC, abstractmethod, abstractproperty
 from dataclasses import dataclass
@@ -14,7 +15,6 @@ from typing import (
     Generic,
     List,
     Mapping,
-    NoReturn,
     Optional,
     Set,
     Type,
@@ -23,16 +23,15 @@ from typing import (
     get_type_hints,
 )
 
-from black import sys
-from bluesky import protocols
+from bluesky.protocols import Descriptor, Readable, Reading, Status
 from bluesky.run_engine import get_bluesky_event_loop
 
 T = TypeVar("T")
 
-Callback = Callable[["Status"], NoReturn]
+Callback = Callable[["Status"], None]
 
 
-class Status(protocols.Status, Generic[T]):
+class AsyncStatus(Status, Generic[T]):
     "Convert asyncio Task to bluesky Status interface"
 
     def __init__(
@@ -40,9 +39,6 @@ class Status(protocols.Status, Generic[T]):
         awaitable: Awaitable[T],
         watchers: Optional[List[Callable]] = None,
     ):
-        # TODO: this always wraps in a task, if performance
-        # is not good enough can revert to only doing that on
-        # add_callback
         if isinstance(awaitable, asyncio.Task):
             self.task = awaitable
         else:
@@ -50,9 +46,6 @@ class Status(protocols.Status, Generic[T]):
         self.task.add_done_callback(self._run_callbacks)
         self._callbacks = cast(List[Callback], [])
         self._watchers = watchers
-
-    def __await__(self):
-        yield from self.task.__await__()
 
     def add_callback(self, callback: Callback):
         if self.done:
@@ -86,10 +79,13 @@ class Status(protocols.Status, Generic[T]):
             self._watchers.append(watcher)
 
 
-def _fail(*args, **kwargs):
-    raise ValueError(
-        "Can't compare two Signals, did you mean await signal.get() instead?"
-    )
+def _fail(self, other, *args, **kwargs):
+    if isinstance(other, Signal):
+        raise ValueError(
+            "Can't compare two Signals, did you mean await signal.get_value() instead?"
+        )
+    else:
+        return NotImplemented
 
 
 SIGNAL_CONNECT_TIMEOUT = 10.0
@@ -102,9 +98,10 @@ class Signal(ABC):
     def source(self) -> Optional[str]:
         """like ca://PV_PREFIX:SIGNAL, or None if not connected"""
 
-    # TODO: when do we actually call this? Should it be on Devices too?
     @abstractmethod
-    async def wait_for_connection(self, timeout: float = SIGNAL_CONNECT_TIMEOUT):
+    async def wait_for_connection(
+        self, timeout: float = SIGNAL_CONNECT_TIMEOUT
+    ) -> None:
         """Wait for the signal to the control system to be live"""
 
     __lt__ = __le__ = __eq__ = __ge__ = __gt__ = __ne__ = _fail
@@ -114,28 +111,92 @@ class SignalRO(Signal, Generic[T]):
     """Signal that can be read from and monitored"""
 
     @abstractmethod
-    async def get(self) -> T:
-        """The current value"""
-
-    # TODO: add read, trigger, etc
+    async def get_descriptor(self) -> Descriptor:
+        """Metadata like source, dtype, shape, precision, units"""
 
     @abstractmethod
-    async def observe(self) -> AsyncGenerator[T, None]:
-        """Observe changes to the current value. First update is the
-        current value"""
+    async def get_reading(self) -> Reading:
+        """The current value, timestamp and severity"""
+
+    async def get_value(self) -> T:
+        """The current value"""
+        reading = await self.get_reading()
+        return reading["value"]
+
+    @abstractmethod
+    async def observe_reading(self) -> AsyncGenerator[Reading, None]:
+        """Observe changes to the current value, timestamp and severity.
+
+        First update is the current value"""
         return
         yield
+
+    async def observe_value(self) -> AsyncGenerator[T, None]:
+        """Observe changes to the current value.
+
+        First update is the current value"""
+        async for reading in self.observe_reading():
+            yield reading["value"]
+
+
+def monitor_observable(
+    observable: AsyncGenerator[T, None], callback: Callable[[T], None]
+) -> asyncio.Task:
+    """Monitors a signal, calling callback on new value
+
+    Returns:
+        Task with a cancel() method
+    """
+
+    async def do_observe():
+        async for value in observable:
+            callback(value)
+
+    return asyncio.create_task(do_observe())
+
+
+class CachedSignal(Generic[T], Readable):
+    """Subscribe to value of a signal while this object exists"""
+
+    def __init__(self, signal: SignalRO[T]):
+        self._signal = signal
+        self._descriptor: Optional[Descriptor] = None
+        self._reading: Optional[Reading] = None
+        self._task = asyncio.create_task(self._update_reading())
+        self._first_update = asyncio.Event()
+
+    async def _update_reading(self) -> None:
+        async for reading in self._signal.observe_reading():
+            self._reading = reading
+            self._first_update.set()
+
+    async def get_reading(self) -> Reading:
+        await self._first_update.wait()
+        assert self._reading is not None, "_update_reading not working"
+        return self._reading
+
+    async def get_descriptor(self) -> Descriptor:
+        if self._descriptor is None:
+            self._descriptor = await self._signal.get_descriptor()
+        return self._descriptor
+
+    def __del__(self):
+        self._task.cancel()
 
 
 class SignalWO(Signal, Generic[T]):
     """Signal that can be put to, but not"""
 
     @abstractmethod
-    def set(self, value: T) -> Status[T]:
-        """Put a value to the control system"""
+    async def put(self, value: T) -> T:
+        """Put a value to the control system.
+
+        Returns:
+            The value the control system actually set it to
+        """
 
 
-class SignalRW(SignalRO[T], SignalWO[T]):
+class SignalRW(SignalWO[T], SignalRO[T]):
     """Signal that can be read from, monitored, and put to"""
 
 
@@ -143,19 +204,28 @@ class SignalX(Signal):
     """Signal that can be executed"""
 
     @abstractmethod
-    async def __call__(self):
+    async def execute(self):
         """Execute this"""
+
+    async def __call__(self):
+        await self.execute()
 
 
 class Device:
-    extra_signals: Mapping[str, Signal]
-
     def __init__(self, signal_prefix: str):
         # signal_prefix is ca://BLxxI-MO-PMAC-01:, may not include transport
         # This will create the signals we asked for, and queue their
         # connection and any extra signals there might be
-        self.extra_signals = {}
+        self.all_signals: Mapping[str, Signal] = {}
         SignalCollector.create_signals(self, signal_prefix)
+
+    async def wait_for_connection(
+        self, timeout: float = SIGNAL_CONNECT_TIMEOUT
+    ) -> None:
+        """Wait for all signals to be live"""
+        await asyncio.gather(
+            signal.wait_for_connection(timeout) for signal in self.all_signals.values()
+        )
 
 
 @dataclass
@@ -243,7 +313,10 @@ class SignalCollector(_SingletonContextManager):
     """Collector of Signals from Device instances to be used as a context manager:
 
     [async] with SignalCollector():
-        SignalCollector.add_provider(CAProvider(), set_default=True)
+        ca = SignalCollector.add_provider(CAProvider(), set_default=True)
+        ca.specify_connections(MotorRecord, yaml="/path/to/motor.pvi.yaml")
+        ca.specify_connections(MotorRecord, dict=dict(demand=PVConnection(".VAL")))
+        ca.specify_connections(Pilatus, pvi=True)
         t1x = SettableMotor(MotorRecord("BLxxI-MO-TABLE-01:X"))
         t1y = SettableMotor(MotorRecord("BLxxI-MO-TABLE-01:Y"))
         # All Signals get connected at the end of the Context

@@ -2,6 +2,7 @@ from ophyd.v2.core import Device, SignalRO, SignalRW, SignalX
 
 
 class Motor(Device):
+    # TODO: How would we add an option to start disconnected?
     demand: SignalRW[float]
     readback: SignalRO[float]
     done_move: SignalRO[bool]

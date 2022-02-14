@@ -6,7 +6,7 @@ from ophyd.v2.providers.sim import SimProvider
 from .devices import Motor
 
 
-@dataclass
+@dataclass(frozen=True)
 class MotorSimParams:
     velocity: float = 1
     precision: int = 3

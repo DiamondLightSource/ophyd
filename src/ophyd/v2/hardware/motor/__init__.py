@@ -1,6 +1,7 @@
 from . import abilities, devices, sims
 
 
+# TODO: make this a runtime accessible object
 def motor(
     signal_prefix: str,
     sim_params: sims.MotorSimParams = sims.MotorSimParams(),

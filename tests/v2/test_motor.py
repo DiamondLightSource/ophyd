@@ -12,6 +12,7 @@ async def test_motor_moving():
     async with SignalCollector(), NamedAbilities():
         SignalCollector.add_provider(SimProvider(), set_default=True)
         x = motor.motor("BLxxI-MO-TABLE-01:X")
+        # Signals connected here
 
     assert x.name == "x"
     s = x.set(0.55)
@@ -36,17 +37,16 @@ async def test_motor_moving():
         precision=3,
         time_elapsed=pytest.approx(0.1, abs=0.05),
     )
-    await x.trigger()
-    assert x.read()["x"]["value"] == 0.55
-    assert x.describe()["x"]["source"] == "sim://BLxxI-MO-TABLE-01:Xreadback"
-    assert x.read_configuration() == {}
-    assert x.describe_configuration() == {}
+    x.stage()
+    assert (await x.read())["x"]["value"] == 0.55
+    assert (await x.describe())["x"]["source"] == "sim://BLxxI-MO-TABLE-01:Xreadback"
+    assert (await x.read_configuration())["x.velocity"]["value"] == 1
+    assert (await x.describe_configuration())["x.egu"]["shape"] == []
+    x.unstage()
     s = x.set(1.5)
     s.add_callback(done)
     await asyncio.sleep(0.2)
     x.stop()
     await asyncio.sleep(0.2)
     assert s.done
-    with pytest.raises(RuntimeError) as cm:
-        await s
-    assert str(cm.value) == "Motor was stopped"
+    assert s.success is False

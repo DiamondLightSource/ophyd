@@ -2,7 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
-from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Optional, TypeVar
+import time
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    Optional,
+    Sequence,
+    TypeVar,
+)
+
+from bluesky.protocols import Descriptor, Dtype, Reading
 
 from ophyd.v2.core import (
     SIGNAL_CONNECT_TIMEOUT,
@@ -15,7 +27,6 @@ from ophyd.v2.core import (
     SignalRW,
     SignalWO,
     SignalX,
-    Status,
     T,
     to_snake_case,
 )
@@ -56,21 +67,41 @@ class SimSignal(Signal):
         await asyncio.wait_for(wait_for_source(), timeout)
 
 
-class SimSignalRO(SignalRO[T], SimSignal):
-    async def get(self) -> T:
-        return self._store.values[id(self)]
+primitive_dtypes: Dict[type, Dtype] = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+}
 
-    async def observe(self) -> AsyncGenerator[T, None]:
+
+class SimSignalRO(SignalRO[T], SimSignal):
+    async def get_descriptor(self) -> Descriptor:
+        assert self.source, "Not connected"
+        value = self._store.values[id(self)]
+        try:
+            dtype = primitive_dtypes[type(value)]
+            shape = []
+        except KeyError:
+            assert isinstance(value, Sequence), f"Can't get dtype for {value!r}"
+            dtype = "array"
+            shape = [len(value)]
+        return dict(source=self.source, dtype=dtype, shape=shape)
+
+    async def get_reading(self) -> Reading:
+        return Reading(value=self._store.values[id(self)], timestamp=time.time())
+
+    async def observe_reading(self) -> AsyncGenerator[Reading, None]:
         id_self = id(self)
         while True:
-            yield self._store.values[id_self]
+            yield Reading(value=self._store.values[id_self], timestamp=time.time())
             await self._store.events[id_self].wait()
 
 
 class SimSignalWO(SignalWO[T], SimSignal):
     """Signal that can be put to"""
 
-    async def _do_set(self, value):
+    async def put(self, value: T) -> T:
         id_self = id(self)
         cb = self._store.on_set.get(id_self, None)
         if cb:
@@ -78,16 +109,13 @@ class SimSignalWO(SignalWO[T], SimSignal):
         self._store.set_value(id_self, value)
         return value
 
-    def set(self, value: T) -> Status[T]:
-        return Status(self._do_set(value))
-
 
 class SimSignalRW(SimSignalRO[T], SimSignalWO[T], SignalRW[T]):
     pass
 
 
 class SimSignalX(SignalX, SimSignal):
-    async def __call__(self):
+    async def execute(self):
         cb = self._store.on_call.get(id(self), None)
         if cb:
             await cb()
