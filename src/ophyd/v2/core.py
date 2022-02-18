@@ -155,7 +155,7 @@ def monitor_observable(
     return asyncio.create_task(do_observe())
 
 
-class CachedSignal(Generic[T], Readable):
+class CachedSignal(Readable, Generic[T]):
     """Subscribe to value of a signal while this object exists"""
 
     def __init__(self, signal: SignalRO[T]):
