@@ -379,17 +379,23 @@ class SignalCollector(_SingletonContextManager):
     def __init__(self, timeout: float = 10.0):
         self.timeout = timeout
         self._providers: Dict[str, SignalProvider] = {}
-        self._signal_awaitables: Dict[Device, Awaitable[None]] = {}
+        self._connect_coros: Dict[Device, Awaitable[None]] = {}
 
     async def __aexit__(self, type_, value, traceback):
         self._get_cls()._instance = None
+        # Schedule coros as tasks
+        task_devices = {
+            asyncio.create_task(coro): device
+            for device, coro in self._connect_coros.items()
+        }
         # Wait for all the signals to have finished
-        done, pending = await asyncio.wait(
-            self._signal_awaitables.values(), timeout=self.timeout
-        )
+        done, pending = await asyncio.wait(task_devices, timeout=self.timeout)
         not_connected = list(t for t in done if t.exception()) + list(pending)
         if not_connected:
-            logging.error(f"{len(not_connected)} devices not connected")
+            msg = f"{len(not_connected)} devices not connected:"
+            for task in not_connected:
+                msg += f"\n    {task_devices[task]}"
+            logging.error(msg)
         for t in pending:
             t.cancel()
 
@@ -442,7 +448,7 @@ class SignalCollector(_SingletonContextManager):
             device.all_signals[d.attr_name] = signal
             setattr(device, d.attr_name, signal)
         sourcer = self._sourcers[type(device)]
-        self._signal_awaitables[device] = provider.connect_signals(
+        self._connect_coros[device] = provider.connect_signals(
             device, signal_prefix, sourcer
         )
 
