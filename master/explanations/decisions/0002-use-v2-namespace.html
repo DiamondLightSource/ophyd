@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>2. Use ophyd.v2 namespace &mdash; ophyd 0.0+untagged.ga30c302 documentation</title>
+  <title>2. Use ophyd.v2 namespace &mdash; ophyd 0.0+untagged.g53382ae documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -21,7 +21,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="API" href="../../reference/api.html" />
+    <link rel="next" title="3. Expose severity and message in read()" href="0003-expose-severity-in-read.html" />
     <link rel="prev" title="1. Record architecture decisions" href="0001-record-architecture-decisions.html" /> 
 </head>
 
@@ -63,6 +63,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#consequences">Consequences</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="0003-expose-severity-in-read.html">3. Expose severity and message in <code class="docutils literal notranslate"><span class="pre">read()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -122,9 +123,8 @@ and put the new code in v2.</p></li>
 </section>
 <section id="consequences">
 <h2>Consequences<a class="headerlink" href="#consequences" title="Permalink to this headline"></a></h2>
-<p>As both need to work side by side, pyepics and aioca will be operating in the
-same process. This should be ok as long as they are accessed from different
-threads, need to check this.</p>
+<p>In order to support this we will create a shim that uses aioca rather than
+pyepics for ophyd.v1 devices.</p>
 </section>
 </section>
 
@@ -133,7 +133,7 @@ threads, need to check this.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="0001-record-architecture-decisions.html" class="btn btn-neutral float-left" title="1. Record architecture decisions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../../reference/api.html" class="btn btn-neutral float-right" title="API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="0003-expose-severity-in-read.html" class="btn btn-neutral float-right" title="3. Expose severity and message in read()" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

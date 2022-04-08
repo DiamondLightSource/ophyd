@@ -26,6 +26,5 @@ Decided on 2.
 Consequences
 ------------
 
-As both need to work side by side, pyepics and aioca will be operating in the
-same process. This should be ok as long as they are accessed from different
-threads, need to check this.
+In order to support this we will create a shim that uses aioca rather than
+pyepics for ophyd.v1 devices.
