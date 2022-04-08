@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 import bluesky.plan_stubs as bps
 import bluesky.plans as bp
@@ -7,11 +6,13 @@ from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 from bluesky.run_engine import get_bluesky_event_loop
 from bluesky.utils import ProgressBarManager
-from IPython import get_ipython
 
-from ophyd.v2.core import NamedAbilities, SignalCollector
+from ophyd.v2.core import NamedAbilities, ReadableSignal, SignalCollector
 from ophyd.v2.hardware import motor
 from ophyd.v2.providers.ca import CaProvider
+
+# from IPython import get_ipython
+
 
 RE = RunEngine({})
 asyncio.set_event_loop(get_bluesky_event_loop())
@@ -45,6 +46,11 @@ def my_plan():
     yield from bp.scan([], x, 1, 2, 5)
     velo = yield from bps.rd(x.readable_signal("velocity"))
     print(velo)
+    # or
+    velo = yield from bps.rd(ReadableSignal(x.device.velocity, x.name + "-velocity"))
+    print(velo)
+    # TODO: Should we name Devices then?
+    # But not
     print(x["velocity"])
 
 
