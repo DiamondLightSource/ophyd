@@ -1,7 +1,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from bluesky.protocols import (
     Descriptor,
@@ -12,16 +12,24 @@ from bluesky.protocols import (
     Stoppable,
 )
 
-from ophyd.v2.core import Ability, AsyncStatus, CachedSignal
+from ophyd.v2.core import (
+    Ability,
+    AsyncStatus,
+    CachedSignal,
+    ReadableSignal,
+    SignalRO,
+    call_in_bluesky_event_loop,
+    in_bluesky_event_loop,
+)
 
 from .devices import Motor
 
 
 @dataclass
 class CachedMotorSignals:
-    readback: CachedSignal[float]
-    velocity: CachedSignal[float]
-    egu: CachedSignal[str]
+    readback: CachedSignal
+    velocity: CachedSignal
+    egu: CachedSignal
 
 
 class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
@@ -31,16 +39,34 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
         self._set_success = True
         self._cache: Optional[CachedMotorSignals] = None
 
+    def readable_signal(self, name: str) -> Readable:
+        signal = getattr(self.device, name)
+        assert isinstance(signal, SignalRO)
+        return ReadableSignal(signal, f"{self.name}-{name}")
+
+    def __getitem__(self, name: str) -> Any:
+        if in_bluesky_event_loop():
+            raise KeyError(
+                f"Can't get {self.name}['{name}'] from inside RE, "
+                f"use bps.rd({self.name}.readable_signal('{name}'))"
+            )
+        try:
+            signal = getattr(self.device, name)
+        except AttributeError:
+            raise KeyError(f"{self.name} has no Signal {name}")
+        assert isinstance(signal, SignalRO)
+        return call_in_bluesky_event_loop(signal.get_value())
+
     def stage(self):
         # Start monitoring signals
         self._cache = CachedMotorSignals(
-            readback=self.device.readback,
-            velocity=self.device.velocity,
-            egu=self.device.egu,
+            readback=CachedSignal(self.device.readback),
+            velocity=CachedSignal(self.device.velocity),
+            egu=CachedSignal(self.device.egu),
         )
 
     def unstage(self):
-        del self._cache
+        self._cache = None
 
     async def read(self) -> Dict[str, Reading]:
         assert self.name and self._cache, "stage() not called or name not set"
@@ -53,15 +79,15 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
     async def read_configuration(self) -> Dict[str, Reading]:
         assert self.name and self._cache, "stage() not called or name not set"
         return {
-            f"{self.name}.velocity": await self._cache.velocity.get_reading(),
-            f"{self.name}.egu": await self._cache.egu.get_reading(),
+            f"{self.name}-velocity": await self._cache.velocity.get_reading(),
+            f"{self.name}-egu": await self._cache.egu.get_reading(),
         }
 
     async def describe_configuration(self) -> Dict[str, Descriptor]:
         assert self.name and self._cache, "stage() not called or name not set"
         return {
-            f"{self.name}.velocity": await self._cache.velocity.get_descriptor(),
-            f"{self.name}.egu": await self._cache.egu.get_descriptor(),
+            f"{self.name}-velocity": await self._cache.velocity.get_descriptor(),
+            f"{self.name}-egu": await self._cache.egu.get_descriptor(),
         }
 
     def set(self, new_position: float, timeout: float = None) -> AsyncStatus[float]:
@@ -98,6 +124,6 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
         status = AsyncStatus(asyncio.wait_for(do_set(), timeout=timeout), watchers)
         return status
 
-    def stop(self, success=False) -> AsyncStatus:
+    async def stop(self, success=False) -> None:
         self._set_success = success
-        return AsyncStatus(self.device.stop())
+        await self.device.stop()

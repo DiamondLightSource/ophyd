@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "abe4550df3c8d165ae4eb6640300e697c3897b021fdfe365080468ae5367d22d"
+            "sha256": "ef98fd025833b6df5579ff329ec7f38f63a95721e3245b595623ee81b7a588d9"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -70,8 +70,8 @@
         },
         "bluesky": {
             "editable": true,
-            "git": "https://github.com/thomascobb/bluesky.git",
-            "ref": "74dcb7fa33d7e1813439379d4063dfa4f7313b7f"
+            "git": "https://github.com/coretl/bluesky.git",
+            "ref": "c2ef24deb14a1612f54ab367d7dabfd34fb17871"
         },
         "click": {
             "hashes": [
@@ -117,11 +117,11 @@
         },
         "importlib-metadata": {
             "hashes": [
-                "sha256:b618b6d2d5ffa2f16add5697cf57a46c76a56229b0ed1c438322e4e95645bd15",
-                "sha256:f284b3e11256ad1e5d03ab86bb2ccd6f5339688ff17a4d797a0fe7df326f23b1"
+                "sha256:175f4ee440a0317f6e8d81b7f8d4869f93316170a65ad2b007d2929186c8052c",
+                "sha256:e0bc84ff355328a4adfc5240c4f211e0ab386f80aa640d1b11f0618a1d282094"
             ],
-            "markers": "python_version < '3.8'",
-            "version": "==4.8.1"
+            "markers": "python_version < '3.8' and python_version < '3.8'",
+            "version": "==4.11.1"
         },
         "ipython": {
             "hashes": [
@@ -357,7 +357,7 @@
                 "sha256:4ca091dea149f945ec56afb48dae714f21e8692ef22a395223bcd328961b6a0e",
                 "sha256:7f001e5ac290a0c0401508864c7ec868be4e701886d5b573a9528ed3973d9d3b"
             ],
-            "markers": "python_version < '3.8'",
+            "markers": "python_version < '3.8' and python_version < '3.8'",
             "version": "==4.0.1"
         },
         "wcwidth": {
@@ -369,10 +369,10 @@
         },
         "zict": {
             "hashes": [
-                "sha256:26aa1adda8250a78dfc6a78d200bfb2ea43a34752cf58980bca75dde0ba0c6e9",
-                "sha256:8e2969797627c8a663575c2fc6fcb53a05e37cdb83ee65f341fc6e0c3d0ced16"
+                "sha256:15b2cc15f95a476fbe0623fd8f771e1e771310bf7a01f95412a0b605b6e47510",
+                "sha256:3b7cf8ba91fb81fbe525e5aeb37e71cded215c99e44335eec86fea2e3c43ef41"
             ],
-            "version": "==2.0.0"
+            "version": "==2.1.0"
         },
         "zipp": {
             "hashes": [
@@ -473,8 +473,8 @@
         },
         "bluesky": {
             "editable": true,
-            "git": "https://github.com/thomascobb/bluesky.git",
-            "ref": "74dcb7fa33d7e1813439379d4063dfa4f7313b7f"
+            "git": "https://github.com/coretl/bluesky.git",
+            "ref": "c2ef24deb14a1612f54ab367d7dabfd34fb17871"
         },
         "certifi": {
             "hashes": [
@@ -651,11 +651,11 @@
         },
         "importlib-metadata": {
             "hashes": [
-                "sha256:b618b6d2d5ffa2f16add5697cf57a46c76a56229b0ed1c438322e4e95645bd15",
-                "sha256:f284b3e11256ad1e5d03ab86bb2ccd6f5339688ff17a4d797a0fe7df326f23b1"
+                "sha256:175f4ee440a0317f6e8d81b7f8d4869f93316170a65ad2b007d2929186c8052c",
+                "sha256:e0bc84ff355328a4adfc5240c4f211e0ab386f80aa640d1b11f0618a1d282094"
             ],
-            "markers": "python_version < '3.8'",
-            "version": "==4.8.1"
+            "markers": "python_version < '3.8' and python_version < '3.8'",
+            "version": "==4.11.1"
         },
         "iniconfig": {
             "hashes": [
@@ -1315,7 +1315,7 @@
                 "sha256:f8afcf15cc511ada719a88e013cec87c11aff7b91f019295eb4530f96fe5ef2f",
                 "sha256:fb1bbeac803adea29cedd70781399c99138358c26d05fcbd23c13016b7f5ec65"
             ],
-            "markers": "python_version < '3.8'",
+            "markers": "python_version < '3.8' and python_version < '3.8'",
             "version": "==1.4.3"
         },
         "typing-extensions": {
@@ -1323,7 +1323,7 @@
                 "sha256:4ca091dea149f945ec56afb48dae714f21e8692ef22a395223bcd328961b6a0e",
                 "sha256:7f001e5ac290a0c0401508864c7ec868be4e701886d5b573a9528ed3973d9d3b"
             ],
-            "markers": "python_version < '3.8'",
+            "markers": "python_version < '3.8' and python_version < '3.8'",
             "version": "==4.0.1"
         },
         "urllib3": {
@@ -1349,10 +1349,10 @@
         },
         "zict": {
             "hashes": [
-                "sha256:26aa1adda8250a78dfc6a78d200bfb2ea43a34752cf58980bca75dde0ba0c6e9",
-                "sha256:8e2969797627c8a663575c2fc6fcb53a05e37cdb83ee65f341fc6e0c3d0ced16"
+                "sha256:15b2cc15f95a476fbe0623fd8f771e1e771310bf7a01f95412a0b605b6e47510",
+                "sha256:3b7cf8ba91fb81fbe525e5aeb37e71cded215c99e44335eec86fea2e3c43ef41"
             ],
-            "version": "==2.0.0"
+            "version": "==2.1.0"
         },
         "zipp": {
             "hashes": [

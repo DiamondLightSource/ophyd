@@ -27,6 +27,7 @@ async def test_motor_moving():
     assert m.call_count == 3
     await asyncio.sleep(0.3)
     assert s.done
+    assert s.success
     assert m.call_count == 6
     assert m.call_args_list[1] == call(
         name="x",
@@ -37,16 +38,16 @@ async def test_motor_moving():
         precision=3,
         time_elapsed=pytest.approx(0.1, abs=0.05),
     )
+    done.assert_called_once()
     x.stage()
     assert (await x.read())["x"]["value"] == 0.55
     assert (await x.describe())["x"]["source"] == "sim://BLxxI-MO-TABLE-01:Xreadback"
-    assert (await x.read_configuration())["x.velocity"]["value"] == 1
-    assert (await x.describe_configuration())["x.egu"]["shape"] == []
+    assert (await x.read_configuration())["x-velocity"]["value"] == 1
+    assert (await x.describe_configuration())["x-egu"]["shape"] == []
     x.unstage()
     s = x.set(1.5)
-    s.add_callback(done)
     await asyncio.sleep(0.2)
-    x.stop()
+    await x.stop()
     await asyncio.sleep(0.2)
     assert s.done
     assert s.success is False

@@ -1,9 +1,8 @@
 import asyncio
 import logging
-import re
 import sys
 import threading
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -14,7 +13,6 @@ from typing import (
     Dict,
     Generic,
     List,
-    Mapping,
     Optional,
     Set,
     Type,
@@ -23,8 +21,10 @@ from typing import (
     get_type_hints,
 )
 
+from black import Iterator
 from bluesky.protocols import Descriptor, Readable, Reading, Status
 from bluesky.run_engine import get_bluesky_event_loop
+from typing_extensions import Protocol
 
 T = TypeVar("T")
 
@@ -88,20 +88,27 @@ def _fail(self, other, *args, **kwargs):
         return NotImplemented
 
 
-SIGNAL_CONNECT_TIMEOUT = 10.0
+def check_no_args(args, kwargs):
+    assert not args and not kwargs, f"Unrecognised {args} {kwargs}"
 
 
 class Signal(ABC):
     """Signals are like ophyd Signals, but async"""
 
     @property
+    @abstractmethod
     def source(self) -> Optional[str]:
-        """like ca://PV_PREFIX:SIGNAL, or None if not connected"""
+        """Like ca://PV_PREFIX:SIGNAL, or None if not set"""
 
     @abstractmethod
-    async def wait_for_connection(
-        self, timeout: float = SIGNAL_CONNECT_TIMEOUT
-    ) -> None:
+    def set_source(self, *args: Any, **kwargs: Any):
+        """Used by the provider to provide the pv of a channel.
+
+        Value can be anything that makes sense to the particular channel
+        """
+
+    @abstractmethod
+    async def wait_for_connection(self) -> None:
         """Wait for the signal to the control system to be live"""
 
     __lt__ = __le__ = __eq__ = __ge__ = __gt__ = __ne__ = _fail
@@ -139,56 +146,11 @@ class SignalRO(Signal, Generic[T]):
             yield reading["value"]
 
 
-def monitor_observable(
-    observable: AsyncGenerator[T, None], callback: Callable[[T], None]
-) -> asyncio.Task:
-    """Monitors a signal, calling callback on new value
-
-    Returns:
-        Task with a cancel() method
-    """
-
-    async def do_observe():
-        async for value in observable:
-            callback(value)
-
-    return asyncio.create_task(do_observe())
-
-
-class CachedSignal(Readable, Generic[T]):
-    """Subscribe to value of a signal while this object exists"""
-
-    def __init__(self, signal: SignalRO[T]):
-        self._signal = signal
-        self._descriptor: Optional[Descriptor] = None
-        self._reading: Optional[Reading] = None
-        self._task = asyncio.create_task(self._update_reading())
-        self._first_update = asyncio.Event()
-
-    async def _update_reading(self) -> None:
-        async for reading in self._signal.observe_reading():
-            self._reading = reading
-            self._first_update.set()
-
-    async def get_reading(self) -> Reading:
-        await self._first_update.wait()
-        assert self._reading is not None, "_update_reading not working"
-        return self._reading
-
-    async def get_descriptor(self) -> Descriptor:
-        if self._descriptor is None:
-            self._descriptor = await self._signal.get_descriptor()
-        return self._descriptor
-
-    def __del__(self):
-        self._task.cancel()
-
-
 class SignalWO(Signal, Generic[T]):
     """Signal that can be put to, but not"""
 
     @abstractmethod
-    async def put(self, value: T) -> T:
+    async def put(self, value: T):
         """Put a value to the control system.
 
         Returns:
@@ -211,21 +173,97 @@ class SignalX(Signal):
         await self.execute()
 
 
+def monitor_observable(
+    observable: AsyncGenerator[T, None], callback: Callable[[T], None]
+) -> asyncio.Task:
+    """Monitors a signal, calling callback on new value
+
+    Returns:
+        Task with a cancel() method
+    """
+
+    async def do_observe():
+        async for value in observable:
+            callback(value)
+
+    return asyncio.create_task(do_observe())
+
+
+class CachedReading:
+    """A Reading that you can wait on"""
+
+    def __init__(self) -> None:
+        self._valid = asyncio.Event()
+        self._reading: Optional[Reading] = None
+
+    async def update(self, signal: SignalRO):
+        try:
+            async for reading in signal.observe_reading():
+                self._reading = reading
+                self._valid.set()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logging.exception(f"Caching {signal.source} raised exception")
+            raise
+
+    async def get(self) -> Reading:
+        await self._valid.wait()
+        assert self._reading is not None, "update() not working"
+        return self._reading
+
+
+class CachedSignal:
+    """Subscribe to value of a signal while this object exists"""
+
+    def __init__(self, signal: SignalRO):
+        self._signal = signal
+        self._descriptor: Optional[Descriptor] = None
+        # Put _reading in a different class so no reference loops, so
+        # __del__ will fire when we lose the ref to a CachedSignal
+        self._reading = CachedReading()
+        self._task = asyncio.create_task(self._reading.update(signal))
+
+    async def get_reading(self) -> Reading:
+        return await self._reading.get()
+
+    async def get_descriptor(self) -> Descriptor:
+        if self._descriptor is None:
+            self._descriptor = await self._signal.get_descriptor()
+        return self._descriptor
+
+    def __del__(self):
+        self._task.cancel()
+
+
+class ReadableSignal(Readable):
+    def __init__(self, signal: SignalRO, name: str) -> None:
+        self.signal = signal
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    async def read(self) -> Dict[str, Reading]:
+        return {self.name: await self.signal.get_reading()}
+
+    async def describe(self) -> Dict[str, Descriptor]:
+        return {self.name: await self.signal.get_descriptor()}
+
+
 class Device:
     def __init__(self, signal_prefix: str):
         # signal_prefix is ca://BLxxI-MO-PMAC-01:, may not include transport
         # This will create the signals we asked for, and queue their
         # connection and any extra signals there might be
-        self.all_signals: Mapping[str, Signal] = {}
+        self.all_signals: Dict[str, Signal] = {}
         SignalCollector.create_signals(self, signal_prefix)
 
-    async def wait_for_connection(
-        self, timeout: float = SIGNAL_CONNECT_TIMEOUT
-    ) -> None:
+    async def wait_for_connection(self) -> None:
         """Wait for all signals to be live"""
-        await asyncio.gather(
-            signal.wait_for_connection(timeout) for signal in self.all_signals.values()
-        )
+        fs = [signal.wait_for_connection() for signal in self.all_signals.values()]
+        await asyncio.gather(*fs)
 
 
 @dataclass
@@ -235,8 +273,7 @@ class SignalDetails:
     value_type: Type
 
     @classmethod
-    def for_device(cls, device: Device) -> Dict[str, "SignalDetails"]:
-        details = {}
+    def for_device(cls, device: Device) -> Iterator["SignalDetails"]:
         for attr_name, hint in get_type_hints(device).items():
             # SignalX takes no typevar, so will have no origin
             origin = getattr(hint, "__origin__", hint)
@@ -244,30 +281,41 @@ class SignalDetails:
                 raise TypeError(f"Annotation {hint} is not a Signal")
             # This will be [ValueT], or [None] in the case of SignalX
             args = getattr(hint, "__args__", [None])
-            details[attr_name] = cls(
-                attr_name=attr_name, signal_cls=origin, value_type=args[0]
-            )
-        return details
+            yield cls(attr_name=attr_name, signal_cls=origin, value_type=args[0])
 
 
-SignalT = TypeVar("SignalT", bound=Signal)
+DeviceT = TypeVar("DeviceT", bound=Device, contravariant=True)
+
+
+class SignalSourcer(Protocol, Generic[DeviceT]):
+    # Possibly adds to signals, then calls set_source on them all
+    async def __call__(self, device: DeviceT, signal_prefix: str):
+        ...
 
 
 class SignalProvider(ABC):
-    @abstractproperty
-    def transport(self) -> str:
+    @staticmethod
+    @abstractmethod
+    def transport() -> str:
         """Return the transport prefix, like ca or sim"""
 
-    def canonical_source(self, prefix: str, suffix: str) -> str:
+    @classmethod
+    def canonical_source(cls, source: Optional[str]) -> Optional[str]:
         """Make the canonical signal source string"""
-        return f"{self.transport}://{prefix}{suffix}"
+        if source:
+            return f"{cls.transport()}://{source}"
+        else:
+            return None
 
     @abstractmethod
-    def create_signals(self, device: Device, signal_prefix: str) -> Awaitable[None]:
-        """For each Signal subclass in the type hints of Device, make
-        an instance of it, and return an awaitable that will connect them
-        and fill in any extra_signals.
-        """
+    def create_disconnected_signal(self, details: SignalDetails) -> Signal:
+        """Create a disconnected Signal to go in all_signals"""
+
+    async def connect_signals(
+        self, device: Device, signal_prefix: str, sourcer: SignalSourcer
+    ):
+        await sourcer(device, signal_prefix)
+        await device.wait_for_connection()
 
 
 InstanceT = TypeVar("InstanceT", bound="_SingletonContextManager")
@@ -312,6 +360,9 @@ SignalProviderT = TypeVar("SignalProviderT", bound=SignalProvider)
 class SignalCollector(_SingletonContextManager):
     """Collector of Signals from Device instances to be used as a context manager:
 
+    Args:
+        timeout: How long to wait for signals to be connected
+
     [async] with SignalCollector():
         ca = SignalCollector.add_provider(CAProvider(), set_default=True)
         ca.specify_connections(MotorRecord, yaml="/path/to/motor.pvi.yaml")
@@ -323,23 +374,36 @@ class SignalCollector(_SingletonContextManager):
     assert t1x.motor.velocity.connected
     """
 
-    def __init__(self):
+    _sourcers: Dict[Type[Device], SignalSourcer] = {}
+
+    def __init__(self, timeout: float = 10.0):
+        self.timeout = timeout
         self._providers: Dict[str, SignalProvider] = {}
         self._signal_awaitables: Dict[Device, Awaitable[None]] = {}
 
     async def __aexit__(self, type_, value, traceback):
         self._get_cls()._instance = None
         # Wait for all the signals to have finished
-        await asyncio.gather(*self._signal_awaitables.values())
+        done, pending = await asyncio.wait(
+            self._signal_awaitables.values(), timeout=self.timeout
+        )
+        not_connected = list(t for t in done if t.exception()) + list(pending)
+        if not_connected:
+            logging.error(f"{len(not_connected)} devices not connected")
+        for t in pending:
+            t.cancel()
 
     def __exit__(self, type_, value, traceback):
-        fut = asyncio.run_coroutine_threadsafe(
-            self.__aexit__(type_, value, traceback),
-            loop=get_bluesky_event_loop(),
-        )
-        event = threading.Event()
-        fut.add_done_callback(lambda _: event.set())
-        event.wait()
+        return call_in_bluesky_event_loop(self.__aexit__(type_, value, traceback))
+
+    @classmethod
+    def set_sourcer(
+        cls, sourcer: SignalSourcer, device_cls: Type[Device] = None
+    ) -> SignalSourcer:
+        if device_cls is None:
+            device_cls = get_type_hints(sourcer)["device"]
+        cls._sourcers[device_cls] = sourcer
+        return sourcer
 
     @classmethod
     def add_provider(
@@ -349,10 +413,13 @@ class SignalCollector(_SingletonContextManager):
         if set_default:
             assert (
                 "" not in self._providers
-            ), "Cannot call add_provider(provider, set_default=False) twice"
+            ), "Cannot call add_provider(provider, set_default=True) twice"
             self._providers[""] = provider
-        assert provider.transport not in self._providers, "Provider already registered"
-        self._providers[provider.transport] = provider
+        transport = provider.transport()
+        assert (
+            transport not in self._providers
+        ), f"Provider already registered for {transport}"
+        self._providers[transport] = provider
         return provider
 
     @classmethod
@@ -370,21 +437,36 @@ class SignalCollector(_SingletonContextManager):
         else:
             transport, signal_prefix = "", split[0]
         provider = self._providers[transport]
-        self._signal_awaitables[device] = provider.create_signals(device, signal_prefix)
+        for d in SignalDetails.for_device(device):
+            signal = provider.create_disconnected_signal(d)
+            device.all_signals[d.attr_name] = signal
+            setattr(device, d.attr_name, signal)
+        sourcer = self._sourcers[type(device)]
+        self._signal_awaitables[device] = provider.connect_signals(
+            device, signal_prefix, sourcer
+        )
 
 
-# TODO: use the one in pvi
-PASCAL_CASE_REGEX = re.compile(r"(?<![A-Z])[A-Z]|[A-Z][a-z/d]|(?<=[a-z])\d")
+def in_bluesky_event_loop() -> bool:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Ok, no running loop
+        return False
+    else:
+        # Check if running loop is bluesky event loop
+        return loop is get_bluesky_event_loop()
 
 
-def to_snake_case(pascal_s: str) -> str:
-    """Takes a PascalCaseFieldName and returns an Title Case Field Name
-    Args:
-        pascal_s: E.g. PascalCaseFieldName
-    Returns:
-        snake_case converted name. E.g. pascal_case_field_name
-    """
-    return PASCAL_CASE_REGEX.sub(lambda m: "_" + m.group().lower(), pascal_s).strip("_")
+def call_in_bluesky_event_loop(coro: Awaitable[T]) -> T:
+    fut = asyncio.run_coroutine_threadsafe(
+        coro,
+        loop=get_bluesky_event_loop(),
+    )
+    event = threading.Event()
+    fut.add_done_callback(lambda _: event.set())
+    event.wait()
+    return fut.result()
 
 
 class Ability:
