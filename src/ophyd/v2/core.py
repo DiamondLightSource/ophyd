@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import sys
-import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
@@ -23,7 +22,7 @@ from typing import (
 
 from black import Iterator
 from bluesky.protocols import Descriptor, Readable, Reading, Status
-from bluesky.run_engine import get_bluesky_event_loop
+from bluesky.run_engine import call_in_bluesky_event_loop
 from typing_extensions import Protocol
 
 T = TypeVar("T")
@@ -42,7 +41,7 @@ class AsyncStatus(Status, Generic[T]):
         if isinstance(awaitable, asyncio.Task):
             self.task = awaitable
         else:
-            self.task = asyncio.create_task(awaitable)
+            self.task = asyncio.create_task(awaitable)  # type: ignore
         self.task.add_done_callback(self._run_callbacks)
         self._callbacks = cast(List[Callback], [])
         self._watchers = watchers
