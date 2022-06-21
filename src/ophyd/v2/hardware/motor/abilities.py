@@ -11,16 +11,9 @@ from bluesky.protocols import (
     Stageable,
     Stoppable,
 )
+from bluesky.run_engine import call_in_bluesky_event_loop, in_bluesky_event_loop
 
-from ophyd.v2.core import (
-    Ability,
-    AsyncStatus,
-    CachedSignal,
-    ReadableSignal,
-    SignalRO,
-    call_in_bluesky_event_loop,
-    in_bluesky_event_loop,
-)
+from ophyd.v2.core import Ability, AsyncStatus, CachedSignal, ReadableSignal, SignalRO
 
 from .devices import Motor
 

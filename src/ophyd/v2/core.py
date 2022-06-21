@@ -453,28 +453,6 @@ class SignalCollector(_SingletonContextManager):
         )
 
 
-def in_bluesky_event_loop() -> bool:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # Ok, no running loop
-        return False
-    else:
-        # Check if running loop is bluesky event loop
-        return loop is get_bluesky_event_loop()
-
-
-def call_in_bluesky_event_loop(coro: Awaitable[T]) -> T:
-    fut = asyncio.run_coroutine_threadsafe(
-        coro,
-        loop=get_bluesky_event_loop(),
-    )
-    event = threading.Event()
-    fut.add_done_callback(lambda _: event.set())
-    event.wait()
-    return fut.result()
-
-
 class Ability:
     # TODO: what do we actually want here?
     @property
