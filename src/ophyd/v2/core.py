@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import sys
-import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
@@ -23,7 +22,7 @@ from typing import (
 
 from black import Iterator
 from bluesky.protocols import Descriptor, Readable, Reading, Status
-from bluesky.run_engine import get_bluesky_event_loop
+from bluesky.run_engine import call_in_bluesky_event_loop
 from typing_extensions import Protocol
 
 T = TypeVar("T")
@@ -42,7 +41,7 @@ class AsyncStatus(Status, Generic[T]):
         if isinstance(awaitable, asyncio.Task):
             self.task = awaitable
         else:
-            self.task = asyncio.create_task(awaitable)
+            self.task = asyncio.create_task(awaitable)  # type: ignore
         self.task.add_done_callback(self._run_callbacks)
         self._callbacks = cast(List[Callback], [])
         self._watchers = watchers
@@ -451,28 +450,6 @@ class SignalCollector(_SingletonContextManager):
         self._connect_coros[device] = provider.connect_signals(
             device, signal_prefix, sourcer
         )
-
-
-def in_bluesky_event_loop() -> bool:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # Ok, no running loop
-        return False
-    else:
-        # Check if running loop is bluesky event loop
-        return loop is get_bluesky_event_loop()
-
-
-def call_in_bluesky_event_loop(coro: Awaitable[T]) -> T:
-    fut = asyncio.run_coroutine_threadsafe(
-        coro,
-        loop=get_bluesky_event_loop(),
-    )
-    event = threading.Event()
-    fut.add_done_callback(lambda _: event.set())
-    event.wait()
-    return fut.result()
 
 
 class Ability:

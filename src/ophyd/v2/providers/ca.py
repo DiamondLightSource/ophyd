@@ -77,7 +77,7 @@ class CaSignalRO(SignalRO[T], CaSignal):
 
     async def get_descriptor(self) -> Descriptor:
         value = await caget(self._read_pv, datatype=self._datatype, format=FORMAT_CTRL)
-        return make_ca_descriptor(self._read_pv, value)
+        return make_ca_descriptor(self.source, value)
 
     async def get_reading(self) -> Reading:
         value = await caget(self._read_pv, datatype=self._datatype, format=FORMAT_TIME)
