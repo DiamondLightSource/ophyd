@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>2. Use ophyd.v2 namespace &mdash; ophyd 0.0+untagged.gef1ca31 documentation</title>
+  <title>2. Use ophyd.v2 namespace &mdash; ophyd 0.0+untagged.g4f832a6 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -17,6 +17,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -101,14 +102,14 @@
            <div itemprop="articleBody">
              
   <section id="use-ophyd-v2-namespace">
-<h1>2. Use <code class="docutils literal notranslate"><span class="pre">ophyd.v2</span></code> namespace<a class="headerlink" href="#use-ophyd-v2-namespace" title="Permalink to this headline"></a></h1>
+<h1>2. Use <code class="docutils literal notranslate"><span class="pre">ophyd.v2</span></code> namespace<a class="headerlink" href="#use-ophyd-v2-namespace" title="Permalink to this heading"></a></h1>
 <p>Date: 2022-02-18</p>
 <section id="status">
-<h2>Status<a class="headerlink" href="#status" title="Permalink to this headline"></a></h2>
+<h2>Status<a class="headerlink" href="#status" title="Permalink to this heading"></a></h2>
 <p>Accepted</p>
 </section>
 <section id="context">
-<h2>Context<a class="headerlink" href="#context" title="Permalink to this headline"></a></h2>
+<h2>Context<a class="headerlink" href="#context" title="Permalink to this heading"></a></h2>
 <p>The current Ophyd needs to work alongside the new Ophyd to allow a gradual
 adoption. There are 2 options:</p>
 <ol class="arabic simple">
@@ -118,11 +119,11 @@ and put the new code in v2.</p></li>
 </ol>
 </section>
 <section id="decision">
-<h2>Decision<a class="headerlink" href="#decision" title="Permalink to this headline"></a></h2>
+<h2>Decision<a class="headerlink" href="#decision" title="Permalink to this heading"></a></h2>
 <p>Decided on 2.</p>
 </section>
 <section id="consequences">
-<h2>Consequences<a class="headerlink" href="#consequences" title="Permalink to this headline"></a></h2>
+<h2>Consequences<a class="headerlink" href="#consequences" title="Permalink to this heading"></a></h2>
 <p>In order to support this we will create a shim that uses aioca rather than
 pyepics for ophyd.v1 devices.</p>
 </section>
