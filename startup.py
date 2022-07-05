@@ -1,10 +1,7 @@
-import asyncio
-
 import bluesky.plan_stubs as bps
 import bluesky.plans as bp
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
-from bluesky.run_engine import get_bluesky_event_loop
 from bluesky.utils import ProgressBarManager
 
 from ophyd.v2.core import NamedAbilities, ReadableSignal, SignalCollector
@@ -15,7 +12,6 @@ from ophyd.v2.providers.ca import CaProvider
 
 
 RE = RunEngine({})
-asyncio.set_event_loop(get_bluesky_event_loop())
 
 bec = BestEffortCallback()
 
