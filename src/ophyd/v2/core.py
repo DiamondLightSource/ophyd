@@ -466,7 +466,6 @@ class Ability:
 
     @name.setter
     def name(self, name: str):
-        assert not self._name, f"Name already set to {self._name}"
         self._name = name
 
 

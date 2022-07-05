@@ -69,6 +69,7 @@ class CaSignalRO(SignalRO[T], CaSignal):
         return CaProvider.canonical_source(self._read_pv)
 
     def set_source(self, read_pv, *args, **kwargs):
+        assert not self._read_pv, f"Read PV already set to {self._read_pv}"
         self._read_pv = read_pv
         check_no_args(args, kwargs)
 
@@ -122,6 +123,7 @@ class CaSignalWO(SignalWO[T], CaSignal):
         return CaProvider.canonical_source(self._write_pv)
 
     def set_source(self, write_pv, wait=True, *args, **kwargs):
+        assert not self._write_pv, f"Write PV already set to {self._write_pv}"
         self._write_pv = write_pv
         self._wait = wait
         check_no_args(args, kwargs)
@@ -135,6 +137,8 @@ class CaSignalWO(SignalWO[T], CaSignal):
 
 class CaSignalRW(CaSignalRO[T], CaSignalWO[T], SignalRW[T]):
     def set_source(self, write_pv, read_pv=None, wait=True, *args, **kwargs):
+        assert not self._read_pv, f"Read PV already set to {self._read_pv}"
+        assert not self._write_pv, f"Write PV already set to {self._write_pv}"
         self._write_pv = write_pv
         self._read_pv = read_pv or write_pv
         self._wait = wait
@@ -156,6 +160,7 @@ class CaSignalX(SignalX, CaSignal):
         return CaProvider.canonical_source(self._write_pv)
 
     def set_source(self, write_pv, write_value=0, wait=True, *args, **kwargs):
+        assert not self._write_pv, f"Write PV already set to {self._write_pv}"
         self._write_pv = write_pv
         self._write_value = write_value
         self._wait = wait

@@ -83,6 +83,7 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
             f"{self.name}-egu": await self._cache.egu.get_descriptor(),
         }
 
+    # TODO: add deadband support
     def set(self, new_position: float, timeout: float = None) -> AsyncStatus[float]:
         start = time.time()
         watchers: List[Callable] = []
