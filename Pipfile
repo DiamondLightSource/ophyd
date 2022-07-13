@@ -9,6 +9,7 @@ ophyd = {editable = true, extras = ["dev"], path = "."}
 [packages]
 ophyd = {editable = true, path = "."}
 bluesky = {editable = true, git = "https://github.com/bluesky/bluesky.git"}
+epicscorelibs = {git = "https://github.com/mdavidsaver/epicscorelibs.git"}
 
 [scripts]
 lint = "pre-commit run --all-files --show-diff-on-failure --color=always -v"

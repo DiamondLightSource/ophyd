@@ -199,10 +199,6 @@ def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]
     else:
         pv_cls = pv_mode.value
     for attr_name, hint in get_type_hints(comms).items():
-        if get_origin(hint) is Union:
-            # We are an EpicsSignal, replace with CaSignal or PvaSignal based
-            # on comms mode
-            hint = get_args(hint)[pv_mode.value]
         origin = get_origin(hint)
         if origin is None:
             # SignalX takes no typevar, so will have no origin
