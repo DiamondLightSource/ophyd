@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Generic, Type
 
 from bluesky.protocols import Descriptor, Reading
@@ -13,10 +12,10 @@ class Monitor(Protocol):
         ...
 
 
-@dataclass
 class Pv(ABC, Generic[T]):
-    pv: str
-    datatype: Type[T]
+    def __init__(self, pv: str, datatype: Type[T]):
+        self.pv = pv
+        self.datatype = datatype
 
     @property
     @abstractmethod

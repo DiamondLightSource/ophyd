@@ -10,7 +10,6 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
-    Union,
     get_type_hints,
 )
 
