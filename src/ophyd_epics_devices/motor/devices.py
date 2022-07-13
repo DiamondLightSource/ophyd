@@ -13,9 +13,9 @@ from bluesky.protocols import (
 )
 from bluesky.run_engine import call_in_bluesky_event_loop, in_bluesky_event_loop
 
-from ophyd.v2.core import Ability, AsyncStatus, CachedSignal, ReadableSignal, SignalRO
+from ophyd.v2.core import AsyncStatus, CachedSignal, Device, ReadableSignal, SignalR
 
-from .devices import Motor
+from .comms import MotorComms
 
 
 @dataclass
@@ -25,16 +25,16 @@ class CachedMotorSignals:
     egu: CachedSignal
 
 
-class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
-    def __init__(self, device: Motor):
-        self.device: Motor = device
+class Motor(Device, Movable, Readable, Stoppable, Stageable):
+    def __init__(self, comms: MotorComms):
+        self.comms: MotorComms = comms
         self._trigger_task: Optional[asyncio.Task[float]] = None
         self._set_success = True
         self._cache: Optional[CachedMotorSignals] = None
 
     def readable_signal(self, name: str) -> Readable:
-        signal = getattr(self.device, name)
-        assert isinstance(signal, SignalRO)
+        signal = getattr(self.comms, name)
+        assert isinstance(signal, SignalR)
         return ReadableSignal(signal, f"{self.name}-{name}")
 
     def __getitem__(self, name: str) -> Any:
@@ -44,18 +44,18 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
                 f"use bps.rd({self.name}.readable_signal('{name}'))"
             )
         try:
-            signal = getattr(self.device, name)
+            signal = getattr(self.comms, name)
         except AttributeError:
             raise KeyError(f"{self.name} has no Signal {name}")
-        assert isinstance(signal, SignalRO)
+        assert isinstance(signal, SignalR)
         return call_in_bluesky_event_loop(signal.get_value())
 
     def stage(self):
         # Start monitoring signals
         self._cache = CachedMotorSignals(
-            readback=CachedSignal(self.device.readback),
-            velocity=CachedSignal(self.device.velocity),
-            egu=CachedSignal(self.device.egu),
+            readback=CachedSignal(self.comms.readback),
+            velocity=CachedSignal(self.comms.velocity),
+            egu=CachedSignal(self.comms.egu),
         )
 
     def unstage(self):
@@ -83,16 +83,15 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
             f"{self.name}-egu": await self._cache.egu.get_descriptor(),
         }
 
-    # TODO: add deadband support
     def set(self, new_position: float, timeout: float = None) -> AsyncStatus[float]:
         start = time.time()
         watchers: List[Callable] = []
 
         async def update_watchers(old_position):
             units, precision = await asyncio.gather(
-                self.device.egu.get_value(), self.device.precision.get_value()
+                self.comms.egu.get_value(), self.comms.precision.get_value()
             )
-            async for current_position in self.device.readback.observe_value():
+            async for current_position in self.comms.readback.observe_value():
                 for watcher in watchers:
                     watcher(
                         name=self.name,
@@ -105,10 +104,10 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
                     )
 
         async def do_set():
-            old_position = await self.device.demand.get_value()
+            old_position = await self.comms.demand.get_value()
             t = asyncio.create_task(update_watchers(old_position))
             try:
-                await self.device.demand.put(new_position)
+                await self.comms.demand.put(new_position)
             finally:
                 t.cancel()
             if not self._set_success:
@@ -120,4 +119,4 @@ class MovableMotor(Ability, Movable, Readable, Stoppable, Stageable):
 
     async def stop(self, success=False) -> None:
         self._set_success = success
-        await self.device.stop()
+        await self.comms.stop.execute()

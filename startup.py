@@ -4,9 +4,8 @@ from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 from bluesky.utils import ProgressBarManager
 
-from ophyd.v2.core import NamedAbilities, ReadableSignal, SignalCollector
-from ophyd.v2.hardware import motor
-from ophyd.v2.providers.ca import CaProvider
+from ophyd.v2.core import CommsConnector, NamedDevices, ReadableSignal
+from ophyd_epics_devices import motor
 
 # from IPython import get_ipython
 
@@ -32,8 +31,7 @@ def spy(name, doc):
 RE.waiting_hook = ProgressBarManager()
 
 
-with SignalCollector(), NamedAbilities():
-    ca = SignalCollector.add_provider(CaProvider(), set_default=True)
+with CommsConnector(), NamedDevices():
     x = motor.motor("pc0105-MO-SIM-01:M1")
 
 
@@ -41,14 +39,14 @@ with SignalCollector(), NamedAbilities():
 def my_plan():
     yield from bp.scan([], x, 1, 2, 5)
     velo = yield from bps.rd(x.readable_signal("velocity"))
-    print(velo)
+    print("inside 1", velo)
     # or
-    velo = yield from bps.rd(ReadableSignal(x.device.velocity, x.name + "-velocity"))
-    print(velo)
+    velo = yield from bps.rd(ReadableSignal(x.comms.velocity, x.name + "-velocity"))
+    print("inside 2", velo)
     # TODO: Should we name Devices then?
     # But not
-    print(x["velocity"])
+    print("but not", x["velocity"])
 
 
-print(x["velocity"])
+print("outside", x["velocity"])
 RE(my_plan())
