@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Awaitable, Iterator
 
 from ophyd.v2.epicscomms import (
@@ -41,6 +42,14 @@ async def motor_v33_connector(comms: MotorComms, pv_prefix: str):
         comms.precision.connect(f"{pv_prefix}.PREC"),
         comms.stop.connect(f"{pv_prefix}.STOP", 1, wait=False),
     )
+
+
+# https://github.com/wyfo/apischema/blob/master/apischema/utils.py
+SNAKE_CASE_REGEX = re.compile(r"_([a-z\d])")
+
+
+def snake_to_camel(s: str) -> str:
+    return SNAKE_CASE_REGEX.sub(lambda m: m.group(1).upper(), s)
 
 
 def connect_ad_signals(comms: EpicsComms, pv_prefix: str) -> Iterator[Awaitable]:
