@@ -13,7 +13,15 @@ from bluesky.protocols import (
 )
 from bluesky.run_engine import call_in_bluesky_event_loop, in_bluesky_event_loop
 
-from ophyd.v2.core import AsyncStatus, CachedSignal, Device, ReadableSignal, SignalR
+from ophyd.v2.core import (
+    AsyncStatus,
+    CachedSignal,
+    Device,
+    Signal,
+    SignalDevice,
+    SignalR,
+    SignalW,
+)
 
 from .comms import MotorComms
 
@@ -32,16 +40,16 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         self._set_success = True
         self._cache: Optional[CachedMotorSignals] = None
 
-    def readable_signal(self, name: str) -> Readable:
+    def signal_device(self, name: str) -> Readable:
         signal = getattr(self.comms, name)
-        assert isinstance(signal, SignalR)
-        return ReadableSignal(signal, f"{self.name}-{name}")
+        assert isinstance(signal, Signal)
+        return SignalDevice(signal, f"{self.name}-{name}")
 
     def __getitem__(self, name: str) -> Any:
         if in_bluesky_event_loop():
             raise KeyError(
                 f"Can't get {self.name}['{name}'] from inside RE, "
-                f"use bps.rd({self.name}.readable_signal('{name}'))"
+                f"use bps.rd({self.name}.signal_device('{name}'))"
             )
         try:
             signal = getattr(self.comms, name)
@@ -49,6 +57,19 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
             raise KeyError(f"{self.name} has no Signal {name}")
         assert isinstance(signal, SignalR)
         return call_in_bluesky_event_loop(signal.get_value())
+
+    def __setitem__(self, name: str, value) -> Any:
+        if in_bluesky_event_loop():
+            raise KeyError(
+                f"Can't set {self.name}['{name}'] from inside RE, "
+                f"use bps.mv({self.name}.signal_device('{name}', {value}))"
+            )
+        try:
+            signal = getattr(self.comms, name)
+        except AttributeError:
+            raise KeyError(f"{self.name} has no Signal {name}")
+        assert isinstance(signal, SignalW)
+        return call_in_bluesky_event_loop(signal.put(value))
 
     def stage(self):
         # Start monitoring signals

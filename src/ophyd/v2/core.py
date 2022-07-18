@@ -19,7 +19,7 @@ from typing import (
     cast,
 )
 
-from bluesky.protocols import Descriptor, Readable, Reading, Status
+from bluesky.protocols import Descriptor, Movable, Readable, Reading, Status
 from bluesky.run_engine import call_in_bluesky_event_loop
 from typing_extensions import Protocol
 
@@ -152,7 +152,7 @@ def monitor_observable(
     return asyncio.create_task(do_observe())
 
 
-class CachedReading:
+class _CachedReading:
     """A Reading that you can wait on"""
 
     def __init__(self) -> None:
@@ -184,7 +184,7 @@ class CachedSignal:
         self._descriptor: Optional[Descriptor] = None
         # Put _reading in a different class so no reference loops, so
         # __del__ will fire when we lose the ref to a CachedSignal
-        self._reading = CachedReading()
+        self._reading = _CachedReading()
         self._task = asyncio.create_task(self._reading.update(signal))
 
     async def get_reading(self) -> Reading:
@@ -197,22 +197,6 @@ class CachedSignal:
 
     def __del__(self):
         self._task.cancel()
-
-
-class ReadableSignal(Readable):
-    def __init__(self, signal: SignalR, name: str) -> None:
-        self.signal = signal
-        self._name = name
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    async def read(self) -> Dict[str, Reading]:
-        return {self.name: await self.signal.get_reading()}
-
-    async def describe(self) -> Dict[str, Descriptor]:
-        return {self.name: await self.signal.get_descriptor()}
 
 
 class Comms(Protocol):
@@ -282,8 +266,7 @@ class CommsConnector:
         self._to_connect.append(comms)
 
     @classmethod
-    @property
-    def sim_mode(cls) -> bool:
+    def in_sim_mode(cls) -> bool:
         self = cls.get_instance()
         return self._sim_mode
 
@@ -303,6 +286,25 @@ class Device:
     @name.setter
     def name(self, name: str):
         self._name = name
+
+
+class SignalDevice(Readable, Movable, Device):
+    def __init__(self, signal: Signal, name: str) -> None:
+        self.signal = signal
+        self._name = name
+
+    async def read(self) -> Dict[str, Reading]:
+        assert isinstance(self.signal, SignalR), f"Signal {self.name} not readable"
+        return {self.name: await self.signal.get_reading()}
+
+    async def describe(self) -> Dict[str, Descriptor]:
+        assert isinstance(self.signal, SignalR), f"Signal {self.name} not readable"
+        return {self.name: await self.signal.get_descriptor()}
+
+    def set(self, value) -> AsyncStatus:
+        assert isinstance(self.signal, SignalW), f"Signal {self.name} not writeable"
+        status = AsyncStatus(self.signal.put(value))
+        return status
 
 
 class NamedDevices:

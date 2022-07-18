@@ -44,35 +44,6 @@ async def motor_v33_connector(comms: MotorComms, pv_prefix: str):
     )
 
 
-# https://github.com/wyfo/apischema/blob/master/apischema/utils.py
-SNAKE_CASE_REGEX = re.compile(r"_([a-z\d])")
-
-
-def snake_to_camel(s: str) -> str:
-    return SNAKE_CASE_REGEX.sub(lambda m: m.group(1).upper(), s)
-
-
-def connect_ad_signals(comms: EpicsComms, pv_prefix: str) -> Iterator[Awaitable]:
-    for name, signal in comms.__signals__.items():
-        pv = f"{pv_prefix}{snake_to_camel(name)}"
-        if isinstance(signal, EpicsSignalRO):
-            yield signal.connect(pv + "_RBV")
-        elif isinstance(signal, EpicsSignalRW):
-            yield signal.connect(pv, pv + "_RBV")
-        elif isinstance(signal, EpicsSignalWO):
-            yield signal.connect(pv)
-        elif isinstance(signal, EpicsSignalX):
-            yield signal.connect(pv)
-        else:
-            raise LookupError(
-                f"Can't work out how to connect{type(signal).__name__} with pv {pv}"
-            )
-
-
-async def ad_connector(comms: EpicsComms, pv_prefix: str):
-    await asyncio.gather(*connect_ad_signals(comms, pv_prefix))
-
-
 # MotorComms()
 # epics_connector(motor_v34_connector)
 # MotorComms()

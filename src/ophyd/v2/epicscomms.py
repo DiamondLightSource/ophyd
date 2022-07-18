@@ -10,6 +10,7 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
     get_type_hints,
 )
 
@@ -17,7 +18,7 @@ from bluesky.protocols import Descriptor, Reading
 from typing_extensions import Protocol, get_args, get_origin
 
 from .core import Callback, CommsConnector, Signal, SignalR, SignalW, T
-from .pv import Monitor, Pv, uninstantiatable_pv
+from .pv import DISCONNECTED_PV, Monitor, Pv, uninstantiatable_pv
 from .pvsim import PvSim
 
 try:
@@ -37,8 +38,6 @@ class _WithDatatype(Generic[T], _WithPvCls):
         self._datatype = datatype
 
 
-CONNECT_NOT_RUN = "connect() has not been run yet"
-
 V = TypeVar("V")
 
 
@@ -55,50 +54,42 @@ async def observe_monitor(
 
 
 class _EpicsSignalR(SignalR[T], _WithDatatype):
-    read_pv: Optional[Pv[T]] = None
+    read_pv: Pv[T] = DISCONNECTED_PV
 
     @property
     def source(self) -> Optional[str]:
-        assert self.read_pv, CONNECT_NOT_RUN
         return self.read_pv.source
 
     async def get_descriptor(self) -> Descriptor:
-        assert self.read_pv, CONNECT_NOT_RUN
         return await self.read_pv.get_descriptor()
 
     async def get_reading(self) -> Reading:
-        assert self.read_pv, CONNECT_NOT_RUN
         return await self.read_pv.get_reading()
 
     async def get_value(self) -> T:
-        assert self.read_pv, CONNECT_NOT_RUN
         return await self.read_pv.get_value()
 
     def observe_reading(self) -> AsyncGenerator[Reading, None]:
-        assert self.read_pv, CONNECT_NOT_RUN
         return observe_monitor(self.read_pv.monitor_reading)
 
     def observe_value(self) -> AsyncGenerator[T, None]:
-        assert self.read_pv, CONNECT_NOT_RUN
         return observe_monitor(self.read_pv.monitor_value)
 
 
 class _EpicsSignalW(SignalW[T], _WithDatatype):
-    write_pv: Optional[Pv[T]] = None
+    write_pv: Pv[T] = DISCONNECTED_PV
     wait: bool = True
 
     @property
     def source(self) -> Optional[str]:
-        assert self.write_pv, CONNECT_NOT_RUN
         return self.write_pv.source
 
     async def put(self, value: T):
-        assert self.write_pv, CONNECT_NOT_RUN
         await self.write_pv.put(value, wait=self.wait)
 
 
-def assert_pv_matches(pv_inst: Optional[Pv], pv_str: str):
-    if pv_inst:
+def assert_pv_matches(pv_inst: Pv, pv_str: str):
+    if pv_inst is not DISCONNECTED_PV:
         assert (
             pv_inst.pv == pv_str
         ), f"Reconnect asked to change from {pv_inst.pv} to {pv_str}"
@@ -133,13 +124,12 @@ class EpicsSignalRW(_EpicsSignalR[T], _EpicsSignalW[T]):
 
 
 class EpicsSignalX(_WithPvCls):
-    write_pv: Optional[Pv] = None
+    write_pv: Pv = DISCONNECTED_PV
     write_value: Any = 0
     wait: bool = True
 
     @property
     def source(self) -> Optional[str]:
-        assert self.write_pv, CONNECT_NOT_RUN
         return self.write_pv.source
 
     async def connect(self, write_pv: str, write_value=0, wait=True):
@@ -150,7 +140,6 @@ class EpicsSignalX(_WithPvCls):
         await self.write_pv.connect()
 
     async def execute(self) -> None:
-        assert self.write_pv, CONNECT_NOT_RUN
         await self.write_pv.put(self.write_value, wait=self.wait)
 
 
@@ -180,7 +169,8 @@ class EpicsComms:
         return f"{type(self).__name__}(pv_prefix={self._pv_prefix!r})"
 
 
-Signals = Dict[str, Signal]
+EpicsSignal = Union[EpicsSignalRO, EpicsSignalRW, EpicsSignalWO, EpicsSignalX]
+Signals = Dict[str, EpicsSignal]
 
 
 def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]:
@@ -193,20 +183,23 @@ def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]
     else:
         # No comms mode specified, use the default
         pv_mode = _default_pv_mode
-    if CommsConnector.sim_mode:
+    if CommsConnector.in_sim_mode():
         pv_cls = PvSim
     else:
         pv_cls = pv_mode.value
-    for attr_name, hint in get_type_hints(comms).items():
-        origin = get_origin(hint)
-        if origin is None:
-            # SignalX takes no typevar, so will have no origin
-            origin = hint
-        # SignalRO, WO, RW take a datatype as arg, so pass that
-        signal = origin(pv_cls, *get_args(hint))
-        # Attach to the comms
-        signals[attr_name] = signal
-        setattr(comms, attr_name, signal)
+    # This is duplicated work for every class instance, but could be in a
+    # subclass hook if it gets slow
+    for cls in reversed(comms.__class__.__mro__):
+        for attr_name, hint in get_type_hints(cls).items():
+            origin = get_origin(hint)
+            if origin is None:
+                # SignalX takes no typevar, so will have no origin
+                origin = hint
+            # SignalRO, WO, RW take a datatype as arg, so pass that
+            signal = origin(pv_cls, *get_args(hint))
+            # Attach to the comms
+            signals[attr_name] = signal
+            setattr(comms, attr_name, signal)
     return signals, pv_prefix
 
 
