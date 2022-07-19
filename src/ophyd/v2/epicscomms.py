@@ -17,7 +17,7 @@ from typing import (
 from bluesky.protocols import Descriptor, Reading
 from typing_extensions import Protocol, get_args, get_origin
 
-from .core import Callback, CommsConnector, Signal, SignalR, SignalW, T
+from .core import Callback, CommsConnector, SignalR, SignalW, T
 from .pv import DISCONNECTED_PV, Monitor, Pv, uninstantiatable_pv
 from .pvsim import PvSim
 
@@ -78,14 +78,13 @@ class _EpicsSignalR(SignalR[T], _WithDatatype):
 
 class _EpicsSignalW(SignalW[T], _WithDatatype):
     write_pv: Pv[T] = DISCONNECTED_PV
-    wait: bool = True
 
     @property
     def source(self) -> Optional[str]:
         return self.write_pv.source
 
-    async def put(self, value: T):
-        await self.write_pv.put(value, wait=self.wait)
+    async def put(self, value: T, wait=True):
+        await self.write_pv.put(value, wait=wait)
 
 
 def assert_pv_matches(pv_inst: Pv, pv_str: str):
@@ -103,15 +102,14 @@ class EpicsSignalRO(_EpicsSignalR[T]):
 
 
 class EpicsSignalWO(_EpicsSignalW[T]):
-    async def connect(self, write_pv: str, wait=True):
+    async def connect(self, write_pv: str):
         assert_pv_matches(self.write_pv, write_pv)
         self.write_pv = self._pv_cls(write_pv, self._datatype)
-        self.wait = wait
         await self.write_pv.connect()
 
 
 class EpicsSignalRW(_EpicsSignalR[T], _EpicsSignalW[T]):
-    async def connect(self, write_pv: str, read_pv: str = None, wait=True):
+    async def connect(self, write_pv: str, read_pv: str = None):
         assert_pv_matches(self.write_pv, write_pv)
         assert_pv_matches(self.read_pv, read_pv or write_pv)
         self.write_pv = self._pv_cls(write_pv, self._datatype)
@@ -119,7 +117,6 @@ class EpicsSignalRW(_EpicsSignalR[T], _EpicsSignalW[T]):
             self.read_pv = self._pv_cls(read_pv, self._datatype)
         else:
             self.read_pv = self.write_pv
-        self.wait = wait
         await asyncio.gather(self.write_pv.connect(), self.read_pv.connect())
 
 

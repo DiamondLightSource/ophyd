@@ -132,7 +132,7 @@ class SignalW(Signal, Generic[T]):
     """Signal that can be put to, but not read"""
 
     @abstractmethod
-    async def put(self, value: T):
+    async def put(self, value: T, wait=True):
         """Put a value to the control system."""
 
 

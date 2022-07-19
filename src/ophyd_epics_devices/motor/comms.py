@@ -1,12 +1,9 @@
 import asyncio
-import re
-from typing import Awaitable, Iterator
 
 from ophyd.v2.epicscomms import (
     EpicsComms,
     EpicsSignalRO,
     EpicsSignalRW,
-    EpicsSignalWO,
     EpicsSignalX,
     epics_connector,
 )

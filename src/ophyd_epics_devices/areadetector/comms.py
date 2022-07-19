@@ -93,7 +93,7 @@ class CamBase:
     temperature: EpicsSignalRW[, 'Temperature')
     temperature_actual = ADCpt(EpicsSignal, 'TemperatureActual')
     time_remaining: EpicsSignalRO[, 'TimeRemaining_RBV')
-    trigger_mode: EpicsSignalRW[, 'TriggerMode')    
+    trigger_mode: EpicsSignalRW[, 'TriggerMode')
     """
 
 

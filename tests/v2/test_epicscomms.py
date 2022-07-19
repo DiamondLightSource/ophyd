@@ -3,7 +3,12 @@ import asyncio
 import pytest
 
 from ophyd.v2.core import CommsConnector
-from ophyd.v2.epicscomms import EpicsComms, EpicsSignalRO, epics_connector
+from ophyd.v2.epicscomms import (
+    EpicsComms,
+    EpicsSignalRO,
+    EpicsSignalRW,
+    epics_connector,
+)
 from ophyd.v2.pv import Pv, uninstantiatable_pv
 
 
@@ -27,11 +32,11 @@ async def test_disconnected_signal():
 
 class Base(EpicsComms):
     s1: EpicsSignalRO[int]
-    s2: EpicsSignalRO[int]
+    s2: EpicsSignalRO[float]
 
 
 class Derived(Base):
-    s2: EpicsSignalRO[float]
+    s2: EpicsSignalRW[float]  # type: ignore
     s3: EpicsSignalRO[str]
 
 
@@ -44,9 +49,12 @@ async def derived_connector(comms: Derived, pv_prefix: str):
 async def test_inherited_comms():
     async with CommsConnector(sim_mode=True):
         d = Derived("prefix:")
+    assert isinstance(d.s3, EpicsSignalRO)
     assert d.s3.source == "sim://prefix:s3"
     assert d.s3.read_pv.datatype == str
+    assert isinstance(d.s2, EpicsSignalRW)
     assert d.s2.source == "sim://prefix:s2"
     assert d.s2.read_pv.datatype == float
+    assert isinstance(d.s1, EpicsSignalRO)
     assert d.s1.source == "sim://prefix:s1"
     assert d.s1.read_pv.datatype == int
