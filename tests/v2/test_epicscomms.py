@@ -3,12 +3,7 @@ import asyncio
 import pytest
 
 from ophyd.v2.core import CommsConnector
-from ophyd.v2.epicscomms import (
-    EpicsComms,
-    EpicsSignalRO,
-    EpicsSignalRW,
-    epics_connector,
-)
+from ophyd.v2.epics import EpicsComm, EpicsSignalRO, EpicsSignalRW, epics_connector
 from ophyd.v2.pv import Pv, uninstantiatable_pv
 
 
@@ -30,7 +25,7 @@ async def test_disconnected_signal():
     )
 
 
-class Base(EpicsComms):
+class Base(EpicsComm):
     s1: EpicsSignalRO[int]
     s2: EpicsSignalRO[float]
 
@@ -41,8 +36,8 @@ class Derived(Base):
 
 
 @epics_connector
-async def derived_connector(comms: Derived, pv_prefix: str):
-    coros = [sig.connect(pv_prefix + name) for name, sig in comms.__signals__.items()]
+async def derived_connector(comm: Derived, pv_prefix: str):
+    coros = [sig.connect(pv_prefix + name) for name, sig in comm.__signals__.items()]
     await asyncio.gather(*coros)
 
 

@@ -153,7 +153,7 @@ def set_default_pv_mode(pv_mode: PvMode):
     _default_pv_mode = pv_mode
 
 
-class EpicsComms:
+class EpicsComm:
     def __init__(self, pv_prefix: str):
         self.__signals__, self._pv_prefix = make_epics_signals(self, pv_prefix)
         self._connector = get_epics_connector(self)
@@ -170,7 +170,7 @@ EpicsSignal = Union[EpicsSignalRO, EpicsSignalRW, EpicsSignalWO, EpicsSignalX]
 Signals = Dict[str, EpicsSignal]
 
 
-def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]:
+def make_epics_signals(comm: EpicsComm, pv_prefix: str) -> Tuple[Signals, str]:
     signals: Signals = {}
     split = pv_prefix.split("://", 1)
     if len(split) > 1:
@@ -186,7 +186,7 @@ def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]
         pv_cls = pv_mode.value
     # This is duplicated work for every class instance, but could be in a
     # subclass hook if it gets slow
-    for cls in reversed(comms.__class__.__mro__):
+    for cls in reversed(comm.__class__.__mro__):
         for attr_name, hint in get_type_hints(cls).items():
             origin = get_origin(hint)
             if origin is None:
@@ -196,27 +196,27 @@ def make_epics_signals(comms: EpicsComms, pv_prefix: str) -> Tuple[Signals, str]
             signal = origin(pv_cls, *get_args(hint))
             # Attach to the comms
             signals[attr_name] = signal
-            setattr(comms, attr_name, signal)
+            setattr(comm, attr_name, signal)
     return signals, pv_prefix
 
 
-EpicsCommsT = TypeVar("EpicsCommsT", bound=EpicsComms, contravariant=True)
+EpicsCommT = TypeVar("EpicsCommT", bound=EpicsComm, contravariant=True)
 
 
-class EpicsConnector(Protocol, Generic[EpicsCommsT]):
+class EpicsConnector(Protocol, Generic[EpicsCommT]):
     # Possibly adds to signals, then calls set_source on them all
-    async def __call__(self, comms: EpicsCommsT, pv_prefix: str):
+    async def __call__(self, comm: EpicsCommT, pv_prefix: str):
         ...
 
 
-_epics_connectors: Dict[Type[EpicsComms], EpicsConnector] = {}
+_epics_connectors: Dict[Type[EpicsComm], EpicsConnector] = {}
 
 
-def epics_connector(connector: EpicsConnector, comms_cls: Type[EpicsComms] = None):
-    if comms_cls is None:
-        comms_cls = get_type_hints(connector)["comms"]
-    _epics_connectors[comms_cls] = connector
+def epics_connector(connector: EpicsConnector, comm_cls: Type[EpicsComm] = None):
+    if comm_cls is None:
+        comm_cls = get_type_hints(connector)["comm"]
+    _epics_connectors[comm_cls] = connector
 
 
-def get_epics_connector(comms: EpicsComms) -> EpicsConnector:
-    return _epics_connectors[type(comms)]
+def get_epics_connector(comm: EpicsComm) -> EpicsConnector:
+    return _epics_connectors[type(comm)]

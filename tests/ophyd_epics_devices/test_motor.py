@@ -16,19 +16,19 @@ async def sim_motor():
         # Signals connected here
 
     assert sim_motor.name == "sim_motor"
-    egu = cast(PvSim, sim_motor.comms.egu.read_pv)
+    egu = cast(PvSim, sim_motor.comm.egu.read_pv)
     egu.set_value("mm")
-    precision = cast(PvSim, sim_motor.comms.precision.read_pv)
+    precision = cast(PvSim, sim_motor.comm.precision.read_pv)
     precision.set_value(3)
-    velocity = cast(PvSim, sim_motor.comms.velocity.read_pv)
+    velocity = cast(PvSim, sim_motor.comm.velocity.read_pv)
     velocity.set_value(1)
     yield sim_motor
 
 
 async def test_motor_moving_well(sim_motor: motor.devices.Motor) -> None:
-    demand = cast(PvSim, sim_motor.comms.demand.write_pv)
+    demand = cast(PvSim, sim_motor.comm.demand.write_pv)
     demand.put_proceeds.clear()
-    readback = cast(PvSim, sim_motor.comms.readback.read_pv)
+    readback = cast(PvSim, sim_motor.comm.readback.read_pv)
     s = sim_motor.set(0.55)
     m = Mock()
     s.watch(m)
@@ -53,7 +53,7 @@ async def test_motor_moving_well(sim_motor: motor.devices.Motor) -> None:
 
 
 async def test_motor_moving_stopped(sim_motor: motor.devices.Motor):
-    demand = cast(PvSim, sim_motor.comms.demand.write_pv)
+    demand = cast(PvSim, sim_motor.comm.demand.write_pv)
     demand.put_proceeds.clear()
     s = sim_motor.set(1.5)
     await asyncio.sleep(0.2)
@@ -72,7 +72,7 @@ async def test_read_motor(sim_motor: motor.devices.Motor):
     ] == "sim://BLxxI-MO-TABLE-01:X.RBV"
     assert (await sim_motor.read_configuration())["sim_motor-velocity"]["value"] == 1
     assert (await sim_motor.describe_configuration())["sim_motor-egu"]["shape"] == []
-    readback = cast(PvSim, sim_motor.comms.readback.read_pv)
+    readback = cast(PvSim, sim_motor.comm.readback.read_pv)
     readback.set_value(0.5)
     assert (await sim_motor.read())["sim_motor"]["value"] == 0.0
     await asyncio.sleep(0)

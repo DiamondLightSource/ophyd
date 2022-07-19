@@ -23,7 +23,7 @@ from ophyd.v2.core import (
     SignalW,
 )
 
-from .comms import MotorComms
+from .comms import MotorComm
 
 
 @dataclass
@@ -34,14 +34,14 @@ class CachedMotorSignals:
 
 
 class Motor(Device, Movable, Readable, Stoppable, Stageable):
-    def __init__(self, comms: MotorComms):
-        self.comms: MotorComms = comms
+    def __init__(self, comm: MotorComm):
+        self.comm: MotorComm = comm
         self._trigger_task: Optional[asyncio.Task[float]] = None
         self._set_success = True
         self._cache: Optional[CachedMotorSignals] = None
 
     def signal_device(self, name: str) -> Readable:
-        signal = getattr(self.comms, name)
+        signal = getattr(self.comm, name)
         assert isinstance(signal, Signal)
         return SignalDevice(signal, f"{self.name}-{name}")
 
@@ -52,7 +52,7 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
                 f"use bps.rd({self.name}.signal_device('{name}'))"
             )
         try:
-            signal = getattr(self.comms, name)
+            signal = getattr(self.comm, name)
         except AttributeError:
             raise KeyError(f"{self.name} has no Signal {name}")
         assert isinstance(signal, SignalR)
@@ -65,7 +65,7 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
                 f"use bps.mv({self.name}.signal_device('{name}', {value}))"
             )
         try:
-            signal = getattr(self.comms, name)
+            signal = getattr(self.comm, name)
         except AttributeError:
             raise KeyError(f"{self.name} has no Signal {name}")
         assert isinstance(signal, SignalW)
@@ -74,9 +74,9 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
     def stage(self):
         # Start monitoring signals
         self._cache = CachedMotorSignals(
-            readback=CachedSignal(self.comms.readback),
-            velocity=CachedSignal(self.comms.velocity),
-            egu=CachedSignal(self.comms.egu),
+            readback=CachedSignal(self.comm.readback),
+            velocity=CachedSignal(self.comm.velocity),
+            egu=CachedSignal(self.comm.egu),
         )
 
     def unstage(self):
@@ -110,9 +110,9 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
 
         async def update_watchers(old_position):
             units, precision = await asyncio.gather(
-                self.comms.egu.get_value(), self.comms.precision.get_value()
+                self.comm.egu.get_value(), self.comm.precision.get_value()
             )
-            async for current_position in self.comms.readback.observe_value():
+            async for current_position in self.comm.readback.observe_value():
                 for watcher in watchers:
                     watcher(
                         name=self.name,
@@ -125,10 +125,10 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
                     )
 
         async def do_set():
-            old_position = await self.comms.demand.get_value()
+            old_position = await self.comm.demand.get_value()
             t = asyncio.create_task(update_watchers(old_position))
             try:
-                await self.comms.demand.put(new_position)
+                await self.comm.demand.put(new_position)
             finally:
                 t.cancel()
             if not self._set_success:
@@ -140,4 +140,4 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
 
     async def stop(self, success=False) -> None:
         self._set_success = success
-        await self.comms.stop.execute()
+        await self.comm.stop.execute()
