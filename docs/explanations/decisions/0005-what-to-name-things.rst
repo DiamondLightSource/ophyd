@@ -23,7 +23,7 @@ Decision
 
 - Things with read(), set() are called Devices
 - Things with Signals like position, readback are called Comms
-- There are factory functions that make Device + Comms composites like Ophyd.v1 Devices
+- There are factory functions that make Device + Comm composites like Ophyd.v1 Devices
 
 .. https://dls-controls.github.io/dls-python3-skeleton/master/how-to/excalidraw.html
 
@@ -37,4 +37,4 @@ Decision
 Consequences
 ------------
 
-Rename Abilities -> Device, Device -> Comms
+Rename Abilities -> Device, Device -> Comm

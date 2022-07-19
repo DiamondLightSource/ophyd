@@ -1,7 +1,7 @@
 import asyncio
 
-from ophyd.v2.epicscomms import (
-    EpicsComms,
+from ophyd.v2.epics import (
+    EpicsComm,
     EpicsSignalRO,
     EpicsSignalRW,
     EpicsSignalX,
@@ -9,7 +9,7 @@ from ophyd.v2.epicscomms import (
 )
 
 
-class MotorComms(EpicsComms):
+class MotorComm(EpicsComm):
     demand: EpicsSignalRW[float]
     readback: EpicsSignalRO[float]
     done_move: EpicsSignalRO[bool]
@@ -25,23 +25,23 @@ class MotorComms(EpicsComms):
 
 # This can live anywhere
 @epics_connector
-async def motor_v33_connector(comms: MotorComms, pv_prefix: str):
+async def motor_v33_connector(comm: MotorComm, pv_prefix: str):
     await asyncio.gather(
-        comms.demand.connect(f"{pv_prefix}.VAL"),
-        comms.readback.connect(f"{pv_prefix}.RBV"),
-        comms.done_move.connect(f"{pv_prefix}.DMOV"),
-        comms.acceleration_time.connect(f"{pv_prefix}.ACCL"),
-        comms.velocity.connect(f"{pv_prefix}.VELO"),
-        comms.max_velocity.connect(f"{pv_prefix}.VMAX"),
-        comms.resolution.connect(f"{pv_prefix}.MRES"),
-        comms.offset.connect(f"{pv_prefix}.OFF"),
-        comms.egu.connect(f"{pv_prefix}.EGU"),
-        comms.precision.connect(f"{pv_prefix}.PREC"),
-        comms.stop.connect(f"{pv_prefix}.STOP", 1, wait=False),
+        comm.demand.connect(f"{pv_prefix}.VAL"),
+        comm.readback.connect(f"{pv_prefix}.RBV"),
+        comm.done_move.connect(f"{pv_prefix}.DMOV"),
+        comm.acceleration_time.connect(f"{pv_prefix}.ACCL"),
+        comm.velocity.connect(f"{pv_prefix}.VELO"),
+        comm.max_velocity.connect(f"{pv_prefix}.VMAX"),
+        comm.resolution.connect(f"{pv_prefix}.MRES"),
+        comm.offset.connect(f"{pv_prefix}.OFF"),
+        comm.egu.connect(f"{pv_prefix}.EGU"),
+        comm.precision.connect(f"{pv_prefix}.PREC"),
+        comm.stop.connect(f"{pv_prefix}.STOP", 1, wait=False),
     )
 
 
-# MotorComms()
+# MotorComm()
 # epics_connector(motor_v34_connector)
-# MotorComms()
-# epics_connector(pvi_connector, MotorComms)
+# MotorComm()
+# epics_connector(pvi_connector, MotorComm)

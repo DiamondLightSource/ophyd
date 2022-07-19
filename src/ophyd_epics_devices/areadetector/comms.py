@@ -1,9 +1,10 @@
 import asyncio
 import re
+from enum import Enum
 from typing import Awaitable, Iterator
 
-from ophyd.v2.epicscomms import (
-    EpicsComms,
+from ophyd.v2.epics import (
+    EpicsComm,
     EpicsSignalRO,
     EpicsSignalRW,
     EpicsSignalWO,
@@ -11,7 +12,7 @@ from ophyd.v2.epicscomms import (
 )
 
 
-class CamBase:
+class ADBaseComm:
     port_name: EpicsSignalRO[str]
     acquire: EpicsSignalRW[bool]
     acquire_period: EpicsSignalRW[float]
@@ -97,8 +98,15 @@ class CamBase:
     """
 
 
-class SimDetectorCam(CamBase):
-    pass
+class SimMode(Enum):
+    bad = "BAD"
+    good = "Good"
+    with_spaces = "With Spaces"
+    with_spaces2 = "With spaces"
+
+
+class SimDetectorComm(ADBaseComm):
+    mode: EpicsSignalRW[SimMode]
 
 
 # https://github.com/wyfo/apischema/blob/master/apischema/utils.py
@@ -109,8 +117,8 @@ def snake_to_camel(s: str) -> str:
     return SNAKE_CASE_REGEX.sub(lambda m: m.group(1).upper(), s)
 
 
-def connect_ad_signals(comms: EpicsComms, pv_prefix: str) -> Iterator[Awaitable]:
-    for name, signal in comms.__signals__.items():
+def connect_ad_signals(comm: EpicsComm, pv_prefix: str) -> Iterator[Awaitable]:
+    for name, signal in comm.__signals__.items():
         pv = f"{pv_prefix}{snake_to_camel(name)}"
         if isinstance(signal, EpicsSignalRO):
             yield signal.connect(pv + "_RBV")
@@ -126,5 +134,5 @@ def connect_ad_signals(comms: EpicsComms, pv_prefix: str) -> Iterator[Awaitable]
             )
 
 
-async def ad_connector(comms: EpicsComms, pv_prefix: str):
-    await asyncio.gather(*connect_ad_signals(comms, pv_prefix))
+async def ad_connector(comm: EpicsComm, pv_prefix: str):
+    await asyncio.gather(*connect_ad_signals(comm, pv_prefix))

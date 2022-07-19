@@ -199,7 +199,7 @@ class CachedSignal:
         self._task.cancel()
 
 
-class Comms(Protocol):
+class Comm(Protocol):
     async def __connect__(self):
         ...
 
@@ -213,8 +213,8 @@ class CommsConnector:
     [async] with CommsConnector():
         t1x = motor.motor("BLxxI-MO-TABLE-01:X")
         t1y = motor.motor("pva://BLxxI-MO-TABLE-01:Y")
-        # Call Comms.__connect__() for all created Comms at end of with block
-    assert t1x.comms.velocity.source
+        # Call Comm.__connect__() for all created Comms at end of with block
+    assert t1x.comm.velocity.source
     """
 
     _instance: ClassVar[Optional[CommsConnector]] = None
@@ -222,7 +222,7 @@ class CommsConnector:
     def __init__(self, sim_mode=False, timeout: float = 10.0):
         self._sim_mode = sim_mode
         self._timeout = timeout
-        self._to_connect: List[Comms] = []
+        self._to_connect: List[Comm] = []
 
     def __enter__(self):
         assert not CommsConnector._instance, "Can't nest SignalConnectors"
@@ -236,14 +236,13 @@ class CommsConnector:
         CommsConnector._instance = None
         # Schedule coros as tasks
         task_comms = {
-            asyncio.create_task(comms.__connect__()): comms
-            for comms in self._to_connect
+            asyncio.create_task(comm.__connect__()): comm for comm in self._to_connect
         }
         # Wait for all the signals to have finished
         done, pending = await asyncio.wait(task_comms, timeout=self._timeout)
         not_connected = list(t for t in done if t.exception()) + list(pending)
         if not_connected:
-            msg = f"{len(not_connected)} comms not connected:"
+            msg = f"{len(not_connected)} comm not connected:"
             for task in not_connected:
                 msg += f"\n    {task_comms[task]}:{task.exception()}"
             logging.error(msg)
@@ -261,9 +260,9 @@ class CommsConnector:
         return CommsConnector._instance
 
     @classmethod
-    def schedule_connect(cls, comms: Comms):
+    def schedule_connect(cls, comm: Comm):
         self = cls.get_instance()
-        self._to_connect.append(comms)
+        self._to_connect.append(comm)
 
     @classmethod
     def in_sim_mode(cls) -> bool:

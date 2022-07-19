@@ -41,7 +41,7 @@ def my_plan():
     velo = yield from bps.rd(x.signal_device("velocity"))
     print("inside 1", velo)
     # or
-    velo = yield from bps.rd(SignalDevice(x.comms.velocity, x.name + "-velocity"))
+    velo = yield from bps.rd(SignalDevice(x.comm.velocity, x.name + "-velocity"))
     print("inside 2", velo)
     # But not
     # print("but not", x["velocity"])
