@@ -51,6 +51,41 @@ class Pv(ABC, Generic[T]):
         """Observe changes to the current value."""
 
 
+DISCONNECTED_ERROR = NotImplementedError(
+    "No PV has been set as EpicsSignal.connect has not been called"
+)
+
+
+class DisconnectedPv(Pv):
+    @property
+    def source(self) -> str:
+        raise DISCONNECTED_ERROR
+
+    async def connect(self):
+        raise DISCONNECTED_ERROR
+
+    async def put(self, value: T, wait=True):
+        raise DISCONNECTED_ERROR
+
+    async def get_descriptor(self) -> Descriptor:
+        raise DISCONNECTED_ERROR
+
+    async def get_reading(self) -> Reading:
+        raise DISCONNECTED_ERROR
+
+    async def get_value(self) -> T:
+        raise DISCONNECTED_ERROR
+
+    def monitor_reading(self, cb: Callback[Reading]) -> Monitor:
+        raise DISCONNECTED_ERROR
+
+    def monitor_value(self, cb: Callback[T]) -> Monitor:
+        raise DISCONNECTED_ERROR
+
+
+DISCONNECTED_PV = DisconnectedPv("", object)
+
+
 def uninstantiatable_pv(transport: str):
     class UninstantiatablePv:
         def __init__(self, *args, **kwargs):

@@ -4,7 +4,7 @@ from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 from bluesky.utils import ProgressBarManager
 
-from ophyd.v2.core import CommsConnector, NamedDevices, ReadableSignal
+from ophyd.v2.core import CommsConnector, NamedDevices, SignalDevice
 from ophyd_epics_devices import motor
 
 # from IPython import get_ipython
@@ -38,15 +38,17 @@ with CommsConnector(), NamedDevices():
 # Run a step scan
 def my_plan():
     yield from bp.scan([], x, 1, 2, 5)
-    velo = yield from bps.rd(x.readable_signal("velocity"))
+    velo = yield from bps.rd(x.signal_device("velocity"))
     print("inside 1", velo)
     # or
-    velo = yield from bps.rd(ReadableSignal(x.comms.velocity, x.name + "-velocity"))
+    velo = yield from bps.rd(SignalDevice(x.comms.velocity, x.name + "-velocity"))
     print("inside 2", velo)
-    # TODO: Should we name Devices then?
     # But not
-    print("but not", x["velocity"])
+    # print("but not", x["velocity"])
 
 
-print("outside", x["velocity"])
+x["velocity"] = 1
+print("outside1", x["velocity"])
+x["velocity"] = 2
+print("outside2", x["velocity"])
 RE(my_plan())
