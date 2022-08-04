@@ -340,8 +340,9 @@ class NamedDevices:
     def __exit__(self, type, value, traceback):
         for name, obj in self._caller_locals().items():
             if name not in self._names_on_enter and isinstance(obj, Device):
-                # We got a device, name it
-                obj.name = name
+                # We got a device, name it if it isn't named already
+                if not obj.name:
+                    obj.name = name
 
     async def __aexit__(self, type, value, traceback):
         return self.__exit__(type, value, traceback)

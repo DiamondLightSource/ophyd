@@ -79,5 +79,5 @@ async def test_read_motor(sim_motor: motor.devices.Motor):
     assert (await sim_motor.read())["sim_motor"]["value"] == 0.5
     sim_motor.unstage()
     with pytest.raises(AssertionError) as cm:
-        (await sim_motor.read())["sim_motor"]["value"]
+        await sim_motor.describe()
     assert str(cm.value) == "stage() not called or name not set"

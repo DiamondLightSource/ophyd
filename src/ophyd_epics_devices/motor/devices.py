@@ -1,7 +1,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from bluesky.protocols import (
     Descriptor,
@@ -11,17 +11,8 @@ from bluesky.protocols import (
     Stageable,
     Stoppable,
 )
-from bluesky.run_engine import call_in_bluesky_event_loop, in_bluesky_event_loop
 
-from ophyd.v2.core import (
-    AsyncStatus,
-    CachedSignal,
-    Device,
-    Signal,
-    SignalDevice,
-    SignalR,
-    SignalW,
-)
+from ophyd.v2.core import AsyncStatus, CachedSignal, Device, Signal, SignalDevice
 
 from .comms import MotorComm
 
@@ -39,37 +30,14 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         self._trigger_task: Optional[asyncio.Task[float]] = None
         self._set_success = True
         self._cache: Optional[CachedMotorSignals] = None
+        for name in self.comm.__signals__:
+            if not hasattr(self, name):
+                setattr(self, name, self.signal_device(name))
 
-    def signal_device(self, name: str) -> Readable:
+    def signal_device(self, name: str) -> SignalDevice:
         signal = getattr(self.comm, name)
         assert isinstance(signal, Signal)
         return SignalDevice(signal, f"{self.name}-{name}")
-
-    def __getitem__(self, name: str) -> Any:
-        if in_bluesky_event_loop():
-            raise KeyError(
-                f"Can't get {self.name}['{name}'] from inside RE, "
-                f"use bps.rd({self.name}.signal_device('{name}'))"
-            )
-        try:
-            signal = getattr(self.comm, name)
-        except AttributeError:
-            raise KeyError(f"{self.name} has no Signal {name}")
-        assert isinstance(signal, SignalR)
-        return call_in_bluesky_event_loop(signal.get_value())
-
-    def __setitem__(self, name: str, value) -> Any:
-        if in_bluesky_event_loop():
-            raise KeyError(
-                f"Can't set {self.name}['{name}'] from inside RE, "
-                f"use bps.mv({self.name}.signal_device('{name}', {value}))"
-            )
-        try:
-            signal = getattr(self.comm, name)
-        except AttributeError:
-            raise KeyError(f"{self.name} has no Signal {name}")
-        assert isinstance(signal, SignalW)
-        return call_in_bluesky_event_loop(signal.put(value))
 
     def stage(self):
         # Start monitoring signals
@@ -83,8 +51,10 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         self._cache = None
 
     async def read(self) -> Dict[str, Reading]:
-        assert self.name and self._cache, "stage() not called or name not set"
-        return {self.name: await self._cache.readback.get_reading()}
+        if self.name and self._cache:
+            return {self.name: await self._cache.readback.get_reading()}
+        else:
+            return {self.name: await self.comm.readback.get_reading()}
 
     async def describe(self) -> Dict[str, Descriptor]:
         assert self.name and self._cache, "stage() not called or name not set"

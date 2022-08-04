@@ -1,9 +1,12 @@
 from . import comms, devices
 
 
-def motor(signal_prefix: str) -> devices.Motor:
+def motor(signal_prefix: str, name=None) -> devices.Motor:
     c = comms.MotorComm(signal_prefix)
-    return devices.Motor(c)
+    d = devices.Motor(c)
+    if name:
+        d.name = name
+    return d
 
 
 EpicsMotor = motor

@@ -3,11 +3,13 @@ import bluesky.plans as bp
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 from bluesky.utils import ProgressBarManager
+from IPython import get_ipython
 
-from ophyd.v2.core import CommsConnector, NamedDevices, SignalDevice
+from ophyd.v2.core import CommsConnector, NamedDevices
+from ophyd.v2.magics import OphydMagics
 from ophyd_epics_devices import motor
 
-# from IPython import get_ipython
+get_ipython().register_magics(OphydMagics)
 
 
 RE = RunEngine({})
@@ -32,23 +34,21 @@ RE.waiting_hook = ProgressBarManager()
 
 
 with CommsConnector(), NamedDevices():
-    x = motor.motor("pc0105-MO-SIM-01:M1")
+    x = motor.motor("pc0105-MO-SIM-01:M1", name="t1-x")
 
 
 # Run a step scan
 def my_plan():
+    # The mypy compatible way
+    yield from bps.mv(x.signal_device("velocity"), 1000)
     yield from bp.scan([], x, 1, 2, 5)
-    velo = yield from bps.rd(x.signal_device("velocity"))
-    print("inside 1", velo)
-    # or
-    velo = yield from bps.rd(SignalDevice(x.comm.velocity, x.name + "-velocity"))
-    print("inside 2", velo)
-    # But not
-    # print("but not", x["velocity"])
+    # The shortcut way
+    velo = yield from bps.rd(x.velocity)
+    print(velo)
 
 
-x["velocity"] = 1
-print("outside1", x["velocity"])
-x["velocity"] = 2
-print("outside2", x["velocity"])
 RE(my_plan())
+
+# on commandline
+# mov x.velocity 1
+# mov det.stat.centroid "Don't use me"
