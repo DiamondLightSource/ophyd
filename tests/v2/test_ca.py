@@ -4,6 +4,7 @@ import string
 import subprocess
 import sys
 import time
+from enum import Enum
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from ophyd.v2.pvca import PvCa
 RECORDS = str(Path(__file__).parent / "records.db")
 PV_PREFIX = "".join(random.choice(string.ascii_uppercase) for _ in range(12))
 LONGOUT = PV_PREFIX + "longout"
+ENUM = PV_PREFIX + "enum"
 
 
 @pytest.fixture
@@ -43,7 +45,7 @@ def ioc():
         pass
 
 
-async def test_ca_signal_get_put(ioc):
+async def test_ca_signal_get_put_long(ioc):
     pv = PvCa(LONGOUT, int)
     await pv.connect()
     assert (await pv.get_value()) == 42
@@ -81,3 +83,49 @@ async def test_ca_signal_monitoring(ioc):
 
     m.close()
     await t
+
+
+class MyEnum(Enum):
+    a = "Aaa"
+    b = "Bbb"
+    c = "Ccc"
+
+
+async def test_ca_signal_get_put_enum(ioc):
+    pv = PvCa(ENUM, MyEnum)
+    await pv.connect()
+    assert (await pv.get_value()) == MyEnum.b
+    await pv.put(MyEnum.c)
+    assert (await pv.get_value()) == MyEnum.c
+
+
+class BadEnum(Enum):
+    a = "Aaa"
+    typo = "Baa"
+
+
+async def test_ca_signal_with_bad_enum(ioc):
+    pv = PvCa(ENUM, BadEnum)
+    with pytest.raises(AssertionError) as cm:
+        await pv.connect()
+    assert str(cm.value) == "Enum strings {'Baa'} not in ['Aaa', 'Bbb', 'Ccc']"
+
+
+async def test_ca_enum_monitor_reading(ioc):
+    pv = PvCa(ENUM, MyEnum)
+    pv_int = PvCa(ENUM, int)
+    await asyncio.gather(pv.connect(), pv_int.connect())
+
+    q = asyncio.Queue()
+    m = pv.monitor_reading(q.put_nowait)
+    v1 = await q.get()
+    assert v1 == {
+        "value": MyEnum.b,
+        "timestamp": pytest.approx(time.time(), rel=0.1),
+        "alarm_severity": 0,
+    }
+    await pv_int.put(2)
+    v2 = await q.get()
+    assert v2["value"] == MyEnum.c
+
+    m.close()

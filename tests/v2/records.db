@@ -10,3 +10,14 @@ record(longout, "$(P)longout") {
   field(VAL, "42")
   field(PINI, "YES")
 }
+
+record(mbbo, "$(P)enum") {
+  field(ZRST, "Aaa")
+  field(ZRVL, "5")
+  field(ONST, "Bbb")
+  field(ONVL, "6")
+  field(TWST, "Ccc")
+  field(TWVL, "7")
+  field(VAL, "1")
+  field(PINI, "YES")
+}
