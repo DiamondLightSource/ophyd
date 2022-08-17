@@ -2,14 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Generic, Type
 
 from bluesky.protocols import Descriptor, Reading
-from typing_extensions import Protocol
 
-from .core import Callback, T
-
-
-class Monitor(Protocol):
-    def close(self):
-        ...
+from .core import Callback, Monitor, T
 
 
 class Pv(ABC, Generic[T]):

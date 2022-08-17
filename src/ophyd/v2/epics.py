@@ -3,7 +3,6 @@ from enum import Enum
 from typing import (
     Any,
     AsyncGenerator,
-    Callable,
     Dict,
     Generic,
     Optional,
@@ -17,8 +16,8 @@ from typing import (
 from bluesky.protocols import Descriptor, Reading
 from typing_extensions import Protocol, get_args, get_origin
 
-from .core import Callback, CommsConnector, SignalR, SignalW, T
-from .pv import DISCONNECTED_PV, Monitor, Pv, uninstantiatable_pv
+from .core import CommsConnector, SignalR, SignalW, T, observe_monitor
+from .pv import DISCONNECTED_PV, Pv, uninstantiatable_pv
 from .pvsim import PvSim
 
 try:
@@ -38,26 +37,16 @@ class _WithDatatype(Generic[T], _WithPvCls):
         self._datatype = datatype
 
 
-V = TypeVar("V")
 
 
-async def observe_monitor(
-    monitor: Callable[[Callback[V]], Monitor]
-) -> AsyncGenerator[V, None]:
-    q: asyncio.Queue[V] = asyncio.Queue()
-    m = monitor(q.put_nowait)
-    try:
-        while True:
-            yield await q.get()
-    finally:
-        m.close()
+
 
 
 class _EpicsSignalR(SignalR[T], _WithDatatype):
     read_pv: Pv[T] = DISCONNECTED_PV
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str:
         return self.read_pv.source
 
     async def get_descriptor(self) -> Descriptor:

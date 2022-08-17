@@ -1,7 +1,6 @@
 import asyncio
 import time
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List
 
 from bluesky.protocols import (
     Descriptor,
@@ -12,24 +11,24 @@ from bluesky.protocols import (
     Stoppable,
 )
 
-from ophyd.v2.core import AsyncStatus, CachedSignal, Device, Signal, SignalDevice
+from ophyd.v2.core import AsyncStatus, Device, Signal, SignalCollection, SignalDevice
 
 from .comms import MotorComm
-
-
-@dataclass
-class CachedMotorSignals:
-    readback: CachedSignal
-    velocity: CachedSignal
-    egu: CachedSignal
 
 
 class Motor(Device, Movable, Readable, Stoppable, Stageable):
     def __init__(self, comm: MotorComm):
         self.comm: MotorComm = comm
-        self._trigger_task: Optional[asyncio.Task[float]] = None
         self._set_success = True
-        self._cache: Optional[CachedMotorSignals] = None
+        # These signal collections will be cached while staged
+        self._conf_signals = SignalCollection(
+            velocity=self.comm.velocity,
+            egu=self.comm.egu,            
+        )
+        self._read_signals = SignalCollection(
+            readback=self.comm.readback,
+        )
+        # Create SignalDevice wrappers to all comm signals
         for name in self.comm.__signals__:
             if not hasattr(self, name):
                 setattr(self, name, self.signal_device(name))
@@ -40,39 +39,26 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         return SignalDevice(signal, f"{self.name}-{name}")
 
     def stage(self):
-        # Start monitoring signals
-        self._cache = CachedMotorSignals(
-            readback=CachedSignal(self.comm.readback),
-            velocity=CachedSignal(self.comm.velocity),
-            egu=CachedSignal(self.comm.egu),
-        )
+        # Start caching signals
+        self._read_signals.set_caching(True)
+        self._conf_signals.set_caching(True)
 
     def unstage(self):
-        self._cache = None
+        # Stop caching signals
+        self._read_signals.set_caching(False)
+        self._conf_signals.set_caching(False)
 
     async def read(self) -> Dict[str, Reading]:
-        if self.name and self._cache:
-            return {self.name: await self._cache.readback.get_reading()}
-        else:
-            return {self.name: await self.comm.readback.get_reading()}
+        return await self._read_signals.read(self.name + "-")
 
     async def describe(self) -> Dict[str, Descriptor]:
-        assert self.name and self._cache, "stage() not called or name not set"
-        return {self.name: await self._cache.readback.get_descriptor()}
+        return await self._read_signals.describe(self.name + "-")
 
     async def read_configuration(self) -> Dict[str, Reading]:
-        assert self.name and self._cache, "stage() not called or name not set"
-        return {
-            f"{self.name}-velocity": await self._cache.velocity.get_reading(),
-            f"{self.name}-egu": await self._cache.egu.get_reading(),
-        }
+        return await self._conf_signals.read(self.name + "-")
 
     async def describe_configuration(self) -> Dict[str, Descriptor]:
-        assert self.name and self._cache, "stage() not called or name not set"
-        return {
-            f"{self.name}-velocity": await self._cache.velocity.get_descriptor(),
-            f"{self.name}-egu": await self._cache.egu.get_descriptor(),
-        }
+        return await self._conf_signals.describe(self.name + "-")
 
     def set(self, new_position: float, timeout: float = None) -> AsyncStatus[float]:
         start = time.time()

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from typing import cast
 from unittest.mock import Mock, call
 
@@ -66,18 +67,20 @@ async def test_motor_moving_stopped(sim_motor: motor.devices.Motor):
 
 async def test_read_motor(sim_motor: motor.devices.Motor):
     sim_motor.stage()
-    assert (await sim_motor.read())["sim_motor"]["value"] == 0.0
-    assert (await sim_motor.describe())["sim_motor"][
+    assert (await sim_motor.read())["sim_motor-readback"]["value"] == 0.0
+    assert (await sim_motor.describe())["sim_motor-readback"][
         "source"
     ] == "sim://BLxxI-MO-TABLE-01:X.RBV"
     assert (await sim_motor.read_configuration())["sim_motor-velocity"]["value"] == 1
     assert (await sim_motor.describe_configuration())["sim_motor-egu"]["shape"] == []
     readback = cast(PvSim, sim_motor.comm.readback.read_pv)
     readback.set_value(0.5)
-    assert (await sim_motor.read())["sim_motor"]["value"] == 0.0
+    assert (await sim_motor.read())["sim_motor-readback"]["value"] == 0.0
     await asyncio.sleep(0)
-    assert (await sim_motor.read())["sim_motor"]["value"] == 0.5
+    assert (await sim_motor.read())["sim_motor-readback"]["value"] == 0.5
     sim_motor.unstage()
-    with pytest.raises(AssertionError) as cm:
-        await sim_motor.describe()
-    assert str(cm.value) == "stage() not called or name not set"
+    # Check we can still read and describe when not staged
+    readback.set_value(0.1)
+    await asyncio.sleep(0)
+    assert (await sim_motor.read())["sim_motor-readback"]["value"] == 0.1
+    assert await sim_motor.describe()

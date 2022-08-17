@@ -18,6 +18,7 @@ from typing import (
     TypeVar,
     cast,
 )
+from weakref import ReferenceType, ref
 
 from bluesky.protocols import Descriptor, Movable, Readable, Reading, Status
 from bluesky.run_engine import call_in_bluesky_event_loop
@@ -90,14 +91,16 @@ class Signal(ABC):
 
     @property
     @abstractmethod
-    def source(self) -> Optional[str]:
-        """Like ca://PV_PREFIX:SIGNAL, or None if not set"""
+    def source(self) -> str:
+        """Like ca://PV_PREFIX:SIGNAL, or "" if not set"""
 
     __lt__ = __le__ = __eq__ = __ge__ = __gt__ = __ne__ = _fail
 
 
 class SignalR(Signal, Generic[T]):
     """Signal that can be read from and monitored"""
+
+    _cache_ref: ReferenceType[CachedSignalR[T]] = lambda _: None
 
     @abstractmethod
     async def get_descriptor(self) -> Descriptor:
@@ -127,6 +130,15 @@ class SignalR(Signal, Generic[T]):
         async for reading in self.observe_reading():
             yield reading["value"]
 
+    @property
+    def cached(self) -> CachedSignalR[T]:
+        cached_signal = self._cache_ref()
+        if cached_signal is None:
+            cached_signal = CachedSignalR(self)
+            self._cache_ref = ref(cached_signal)
+        cached_signal.clear_descriptor()
+        return cached_signal
+
 
 class SignalW(Signal, Generic[T]):
     """Signal that can be put to, but not read"""
@@ -152,10 +164,40 @@ def monitor_observable(
     return asyncio.create_task(do_observe())
 
 
+class Monitor(Protocol):
+    def close(self):
+        ...
+
+
+async def observe_monitor(
+    monitor: Callable[[Callback[T]], Monitor]
+) -> AsyncGenerator[T, None]:
+    q: asyncio.Queue[T] = asyncio.Queue()
+    m = monitor(q.put_nowait)
+    try:
+        while True:
+            yield await q.get()
+    finally:
+        m.close()
+
+
+class ReadingMonitor:
+    def __init__(
+        self, callback: Callback[Reading], listeners: List[ReadingMonitor]
+    ) -> None:
+        self.callback = callback
+        self._listeners = listeners
+        self._listeners.append(self)
+
+    def close(self):
+        self._listeners.remove(self)
+
+
 class _CachedReading:
     """A Reading that you can wait on"""
 
     def __init__(self) -> None:
+        self._listeners: List[ReadingMonitor] = []
         self._valid = asyncio.Event()
         self._reading: Optional[Reading] = None
 
@@ -164,11 +206,18 @@ class _CachedReading:
             async for reading in signal.observe_reading():
                 self._reading = reading
                 self._valid.set()
+                for listener in self._listeners:
+                    listener.callback(reading)
         except asyncio.CancelledError:
             return
         except Exception:
             logging.exception(f"Caching {signal.source} raised exception")
             raise
+
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
+        if self._reading:
+            callback(self._reading)
+        return ReadingMonitor(callback, self._listeners)
 
     async def get(self) -> Reading:
         await self._valid.wait()
@@ -176,10 +225,11 @@ class _CachedReading:
         return self._reading
 
 
-class CachedSignal:
+class CachedSignalR(SignalR[T]):
     """Subscribe to value of a signal while this object exists"""
 
-    def __init__(self, signal: SignalR):
+    def __init__(self, signal: SignalR[T]):
+        assert signal.source, "Can't create a cached signal until it's disconnected"
         self._signal = signal
         self._descriptor: Optional[Descriptor] = None
         # Put _reading in a different class so no reference loops, so
@@ -187,16 +237,67 @@ class CachedSignal:
         self._reading = _CachedReading()
         self._task = asyncio.create_task(self._reading.update(signal))
 
-    async def get_reading(self) -> Reading:
-        return await self._reading.get()
+    @property
+    def source(self) -> str:
+        return self._signal.source
 
     async def get_descriptor(self) -> Descriptor:
         if self._descriptor is None:
             self._descriptor = await self._signal.get_descriptor()
         return self._descriptor
 
+    def clear_descriptor(self):
+        self._descriptor = None
+
+    async def get_reading(self) -> Reading:
+        reading = await self._reading.get()
+        print(reading, self)
+        return reading
+
+    async def observe_reading(self) -> AsyncGenerator[Reading, None]:
+        return observe_monitor(self._reading.monitor_reading())
+
+    @property
+    def cached(self) -> CachedSignalR[T]:
+        return self
+
     def __del__(self):
         self._task.cancel()
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+async def gather_dict(d: Dict[K, Awaitable[V]]) -> Dict[K, V]:
+    results = await asyncio.gather(*d.values())
+    return dict(zip(d, results))
+
+
+class SignalCollection:
+    """Create a group of signals to be read together"""
+
+    def __init__(self, **signals: SignalR):
+        self._signals = signals
+        self._cached_signals: Dict[str, SignalR] = {}
+
+    def set_caching(self, caching: bool):
+        if caching:
+            self._cached_signals = {k: v.cached for k, v in self._signals.items()}
+        else:
+            self._cached_signals = {}
+
+    @property
+    def signals(self) -> Dict[str, SignalR]:
+        return self._cached_signals or self._signals
+
+    async def describe(self, name_prefix: str) -> Dict[str, Descriptor]:
+        d = {name_prefix + k: sig.get_descriptor() for k, sig in self.signals.items()}
+        return await gather_dict(d)
+
+    async def read(self, name_prefix: str) -> Dict[str, Reading]:
+        d = {name_prefix + k: sig.get_reading() for k, sig in self.signals.items()}
+        return await gather_dict(d)
 
 
 class Comm(Protocol):
