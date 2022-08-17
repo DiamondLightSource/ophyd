@@ -118,7 +118,7 @@ def snake_to_camel(s: str) -> str:
 
 
 def connect_ad_signals(comm: EpicsComm, pv_prefix: str) -> Iterator[Awaitable]:
-    for name, signal in comm.__signals__.items():
+    for name, signal in comm._signals_.items():
         pv = f"{pv_prefix}{snake_to_camel(name)}"
         if isinstance(signal, EpicsSignalRO):
             yield signal.connect(pv + "_RBV")

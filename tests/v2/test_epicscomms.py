@@ -37,7 +37,7 @@ class Derived(Base):
 
 @epics_connector
 async def derived_connector(comm: Derived, pv_prefix: str):
-    coros = [sig.connect(pv_prefix + name) for name, sig in comm.__signals__.items()]
+    coros = [sig.connect(pv_prefix + name) for name, sig in comm._signals_.items()]
     await asyncio.gather(*coros)
 
 

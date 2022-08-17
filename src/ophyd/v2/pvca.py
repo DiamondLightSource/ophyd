@@ -123,17 +123,17 @@ class PvCa(Pv[T]):
         value = await caget(self.pv, datatype=self.ca_datatype)
         return self.converter.from_ca(value)
 
-    def monitor_reading(self, cb: Callable[[Reading], None]) -> Subscription:
+    def monitor_reading(self, callback: Callable[[Reading], None]) -> Subscription:
         return camonitor(
             self.pv,
-            lambda v: cb(make_ca_reading(v, self.converter)),
+            lambda v: callback(make_ca_reading(v, self.converter)),
             datatype=self.ca_datatype,
             format=FORMAT_TIME,
         )
 
-    def monitor_value(self, cb: Callable[[T], None]) -> Subscription:
+    def monitor_value(self, callback: Callable[[T], None]) -> Subscription:
         return camonitor(
             self.pv,
-            lambda v: cb(self.converter.from_ca(v)),
+            lambda v: callback(self.converter.from_ca(v)),
             datatype=self.ca_datatype,
         )

@@ -23,13 +23,13 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         # These signal collections will be cached while staged
         self._conf_signals = SignalCollection(
             velocity=self.comm.velocity,
-            egu=self.comm.egu,            
+            egu=self.comm.egu,
         )
         self._read_signals = SignalCollection(
             readback=self.comm.readback,
         )
         # Create SignalDevice wrappers to all comm signals
-        for name in self.comm.__signals__:
+        for name in self.comm._signals_:
             if not hasattr(self, name):
                 setattr(self, name, self.signal_device(name))
 
@@ -45,8 +45,10 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
 
     def unstage(self):
         # Stop caching signals
+        print("before")
         self._read_signals.set_caching(False)
         self._conf_signals.set_caching(False)
+        print("after")
 
     async def read(self) -> Dict[str, Reading]:
         return await self._read_signals.read(self.name + "-")
@@ -64,11 +66,14 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         start = time.time()
         watchers: List[Callable] = []
 
-        async def update_watchers(old_position):
-            units, precision = await asyncio.gather(
-                self.comm.egu.get_value(), self.comm.precision.get_value()
+        async def do_set():
+            old_position, units, precision = await asyncio.gather(
+                self.comm.demand.get_value(),
+                self.comm.egu.get_value(),
+                self.comm.precision.get_value(),
             )
-            async for current_position in self.comm.readback.observe_value():
+
+            def update_watchers(current_position: float):
                 for watcher in watchers:
                     watcher(
                         name=self.name,
@@ -80,13 +85,11 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
                         time_elapsed=time.time() - start,
                     )
 
-        async def do_set():
-            old_position = await self.comm.demand.get_value()
-            t = asyncio.create_task(update_watchers(old_position))
+            monitor = self.comm.readback.monitor_value(update_watchers)
             try:
                 await self.comm.demand.put(new_position)
             finally:
-                t.cancel()
+                monitor.close()
             if not self._set_success:
                 raise RuntimeError("Motor was stopped")
 

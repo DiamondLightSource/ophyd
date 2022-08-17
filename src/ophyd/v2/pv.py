@@ -37,11 +37,11 @@ class Pv(ABC, Generic[T]):
         """The current value"""
 
     @abstractmethod
-    def monitor_reading(self, cb: Callback[Reading]) -> Monitor:
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
         """Observe changes to the current value, timestamp and severity."""
 
     @abstractmethod
-    def monitor_value(self, cb: Callback[T]) -> Monitor:
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
         """Observe changes to the current value."""
 
 
@@ -70,10 +70,10 @@ class DisconnectedPv(Pv):
     async def get_value(self) -> T:
         raise DISCONNECTED_ERROR
 
-    def monitor_reading(self, cb: Callback[Reading]) -> Monitor:
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
         raise DISCONNECTED_ERROR
 
-    def monitor_value(self, cb: Callback[T]) -> Monitor:
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
         raise DISCONNECTED_ERROR
 
 

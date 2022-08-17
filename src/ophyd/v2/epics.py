@@ -2,7 +2,6 @@ import asyncio
 from enum import Enum
 from typing import (
     Any,
-    AsyncGenerator,
     Dict,
     Generic,
     Optional,
@@ -16,7 +15,7 @@ from typing import (
 from bluesky.protocols import Descriptor, Reading
 from typing_extensions import Protocol, get_args, get_origin
 
-from .core import CommsConnector, SignalR, SignalW, T, observe_monitor
+from .core import Callback, CommsConnector, Monitor, SignalR, SignalW, T
 from .pv import DISCONNECTED_PV, Pv, uninstantiatable_pv
 from .pvsim import PvSim
 
@@ -37,11 +36,6 @@ class _WithDatatype(Generic[T], _WithPvCls):
         self._datatype = datatype
 
 
-
-
-
-
-
 class _EpicsSignalR(SignalR[T], _WithDatatype):
     read_pv: Pv[T] = DISCONNECTED_PV
 
@@ -58,18 +52,18 @@ class _EpicsSignalR(SignalR[T], _WithDatatype):
     async def get_value(self) -> T:
         return await self.read_pv.get_value()
 
-    def observe_reading(self) -> AsyncGenerator[Reading, None]:
-        return observe_monitor(self.read_pv.monitor_reading)
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
+        return self.read_pv.monitor_reading(callback)
 
-    def observe_value(self) -> AsyncGenerator[T, None]:
-        return observe_monitor(self.read_pv.monitor_value)
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
+        return self.read_pv.monitor_value(callback)
 
 
 class _EpicsSignalW(SignalW[T], _WithDatatype):
     write_pv: Pv[T] = DISCONNECTED_PV
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str:
         return self.write_pv.source
 
     async def put(self, value: T, wait=True):
@@ -144,11 +138,11 @@ def set_default_pv_mode(pv_mode: PvMode):
 
 class EpicsComm:
     def __init__(self, pv_prefix: str):
-        self.__signals__, self._pv_prefix = make_epics_signals(self, pv_prefix)
+        self._signals_, self._pv_prefix = make_epics_signals(self, pv_prefix)
         self._connector = get_epics_connector(self)
         CommsConnector.schedule_connect(self)
 
-    async def __connect__(self):
+    async def _connect_(self):
         await self._connector(self, self._pv_prefix)
 
     def __repr__(self) -> str:
