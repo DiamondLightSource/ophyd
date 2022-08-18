@@ -45,10 +45,8 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
 
     def unstage(self):
         # Stop caching signals
-        print("before")
         self._read_signals.set_caching(False)
         self._conf_signals.set_caching(False)
-        print("after")
 
     async def read(self) -> Dict[str, Reading]:
         return await self._read_signals.read(self.name + "-")
