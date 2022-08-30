@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable, Dict, Generic, List, Sequence, Type, TypeVar
+from typing import Dict, Generic, List, Sequence, Type, TypeVar
 
 from bluesky.protocols import Descriptor, Dtype, Reading
 from typing_extensions import Protocol
 
-from .core import ReadingMonitor, T
-from .pv import Pv
+from .core import Monitor, T
+from .pv import Pv, PvCallback
 
 primitive_dtypes: Dict[type, Dtype] = {
     str: "string",
@@ -37,6 +37,16 @@ class PutHandler(Protocol, Generic[ValueT]):
         pass
 
 
+class SimMonitor(Generic[T]):
+    def __init__(self, callback: PvCallback[T], listeners: List[SimMonitor[T]]):
+        self.callback = callback
+        self._listeners = listeners
+        self._listeners.append(self)
+
+    def close(self):
+        self._listeners.remove(self)
+
+
 class PvSim(Pv[T]):
     value: T
     timestamp: float
@@ -45,7 +55,7 @@ class PvSim(Pv[T]):
         super().__init__(pv, datatype)
         self.put_proceeds = asyncio.Event()
         self.put_proceeds.set()
-        self._listeners: List[ReadingMonitor] = []
+        self._listeners: List[SimMonitor[T]] = []
         self.set_value(datatype())
 
     @property
@@ -73,16 +83,12 @@ class PvSim(Pv[T]):
     async def get_value(self) -> T:
         return self.value
 
-    def monitor_reading(self, callback: Callable[[Reading], None]) -> ReadingMonitor:
-        callback(self.reading)
-        return ReadingMonitor(callback, self._listeners)
-
-    def monitor_value(self, callback: Callable[[T], None]) -> ReadingMonitor:
-        callback(self.value)
-        return ReadingMonitor(lambda r: callback(r["value"]), self._listeners)
+    def monitor_reading_value(self, callback: PvCallback[T]) -> Monitor:
+        callback(self.reading, self.value)
+        return SimMonitor(callback, self._listeners)
 
     def set_value(self, value: T) -> None:
         self.value = value
         self.timestamp = time.time()
-        for listener in self._listeners:
-            listener.callback(self.reading)
+        for rl in self._listeners:
+            rl.callback(self.reading, self.value)

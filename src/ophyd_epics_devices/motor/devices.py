@@ -28,6 +28,10 @@ class Motor(Device, Movable, Readable, Stoppable, Stageable):
         self._read_signals = SignalCollection(
             readback=self.comm.readback,
         )
+
+    @Device.name.setter  # type: ignore
+    def name(self, name: str):
+        self._name = name
         # Create SignalDevice wrappers to all comm signals
         for name in self.comm._signals_:
             if not hasattr(self, name):

@@ -18,7 +18,6 @@ from typing import (
     TypeVar,
     cast,
 )
-from weakref import ReferenceType, ref
 
 from bluesky.protocols import (
     Descriptor,
@@ -73,6 +72,9 @@ class AsyncStatus(Status, Generic[T]):
         else:
             return True
 
+    def __await__(self):
+        return self.task.__await__()
+
     def _run_callbacks(self, task: asyncio.Task):
         if not task.cancelled():
             for callback in self._callbacks:
@@ -124,20 +126,17 @@ class Signal(ABC):
 class SignalR(Signal, Generic[T]):
     """Signal that can be read from and monitored"""
 
-    _cache_ref: Optional[ReferenceType[CachedSignalR[T]]] = None
-
     @abstractmethod
     async def get_descriptor(self) -> Descriptor:
         """Metadata like source, dtype, shape, precision, units"""
 
     @abstractmethod
-    async def get_reading(self) -> Reading:
+    async def get_reading(self, cached: Optional[bool] = None) -> Reading:
         """The current value, timestamp and severity"""
 
-    async def get_value(self) -> T:
+    @abstractmethod
+    async def get_value(self, cached: Optional[bool] = None) -> T:
         """The current value"""
-        reading = await self.get_reading()
-        return reading["value"]
 
     @abstractmethod
     def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
@@ -145,27 +144,11 @@ class SignalR(Signal, Generic[T]):
 
         First update is the current value"""
 
+    @abstractmethod
     def monitor_value(self, callback: Callback[T]) -> Monitor:
         """Observe changes to the current value.
 
         First update is the current value"""
-        return self.monitor_reading(lambda r: callback(r["value"]))
-
-    @property
-    def cached(self) -> CachedSignalR[T]:
-        cached_signal = None
-        if self._cache_ref:
-            # We did make a CachedSignal, but is it still alive?
-            cached_signal = self._cache_ref()
-        if cached_signal is None:
-            # No live CachedSignal, so make it and keep a weakref to it
-            cached_signal = CachedSignalR(self)
-            self._cache_ref = ref(cached_signal)
-        # If we are asked for a new cached signal, then someone new is asking
-        # for it, so clear the descriptor to ensure it will be correct if they
-        # ask for it
-        cached_signal.clear_descriptor()
-        return cached_signal
 
 
 class SignalW(Signal, Generic[T]):
@@ -174,88 +157,6 @@ class SignalW(Signal, Generic[T]):
     @abstractmethod
     async def put(self, value: T, wait=True):
         """Put a value to the control system."""
-
-
-class ReadingMonitor:
-    def __init__(
-        self, callback: Callback[Reading], listeners: List[ReadingMonitor]
-    ) -> None:
-        self.callback = callback
-        self._listeners = listeners
-        self._listeners.append(self)
-
-    def close(self):
-        self._listeners.remove(self)
-        # Remove the callback so we lose a ref to caller
-        del self.callback
-
-
-class _LatestReading:
-    """A Reading that you can wait on"""
-
-    def __init__(self) -> None:
-        self.listeners: List[ReadingMonitor] = []
-        self.valid = asyncio.Event()
-        self.reading: Optional[Reading] = None
-
-    def update(self, reading: Reading):
-        self.reading = reading
-        self.valid.set()
-        for listener in self.listeners:
-            listener.callback(reading)
-
-    async def get(self) -> Reading:
-        await self.valid.wait()
-        assert self.reading is not None, "CachedReading.update not working"
-        return self.reading
-
-    def add_monitor(self, callback: Callback[Reading]) -> ReadingMonitor:
-        if self.reading:
-            callback(self.reading)
-        return ReadingMonitor(callback, self.listeners)
-
-
-class CachedSignalR(SignalR[T]):
-    """Subscribe to value of a signal while this object exists"""
-
-    def __init__(self, signal: SignalR[T]):
-        assert signal.source, "Can't create a cached signal until it's disconnected"
-        self._signal = signal
-        self._descriptor: Optional[Descriptor] = None
-        # Put _reading in a different class so no reference loops, so
-        # __del__ will fire when we lose the ref to a CachedSignal
-        self._latest = _LatestReading()
-        self._monitor = signal.monitor_reading(self._latest.update)
-
-    @property
-    def source(self) -> str:
-        return self._signal.source
-
-    async def get_descriptor(self) -> Descriptor:
-        if self._descriptor is None:
-            self._descriptor = await self._signal.get_descriptor()
-        return self._descriptor
-
-    def clear_descriptor(self):
-        self._descriptor = None
-
-    async def get_reading(self) -> Reading:
-        return await self._latest.get()
-
-    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
-        # Add a ref to ourself in the callback, so while the monitor is
-        # alive we will stay cached
-        def bound_callback(reading: Reading, self=self):
-            callback(reading)
-
-        return self._latest.add_monitor(bound_callback)
-
-    @property
-    def cached(self) -> CachedSignalR[T]:
-        return self
-
-    def __del__(self):
-        self._monitor.close()
 
 
 K = TypeVar("K")
@@ -267,33 +168,39 @@ async def gather_dict(d: Dict[K, Awaitable[V]]) -> Dict[K, V]:
     return dict(zip(d, results))
 
 
+def do_nothing(value):
+    pass
+
+
 class SignalCollection:
     """Create a group of signals to be read together"""
 
     def __init__(self, **signals: SignalR):
         self._signals = signals
-        self._cached_signals: Dict[str, SignalR] = {}
+        self._monitors: Set[Monitor] = set()
 
     def set_caching(self, caching: bool):
         if caching:
-            self._cached_signals = {k: v.cached for k, v in self._signals.items()}
+            assert not self._monitors, "Already caching"
+            for v in self._signals.values():
+                # Just so the value will be cached on read
+                self._monitors.add(v.monitor_reading(do_nothing))
         else:
-            self._cached_signals = {}
-
-    @property
-    def signals(self) -> Dict[str, SignalR]:
-        signals = self._cached_signals or self._signals
-        return signals
+            while self._monitors:
+                self._monitors.pop().close()
 
     async def describe(self, name_prefix: str = "") -> Dict[str, Descriptor]:
         return await gather_dict(
-            {name_prefix + k: sig.get_descriptor() for k, sig in self.signals.items()}
+            {name_prefix + k: sig.get_descriptor() for k, sig in self._signals.items()}
         )
 
     async def read(self, name_prefix: str = "") -> Dict[str, Reading]:
         return await gather_dict(
-            {name_prefix + k: sig.get_reading() for k, sig in self.signals.items()}
+            {name_prefix + k: sig.get_reading() for k, sig in self._signals.items()}
         )
+
+    def __del__(self):
+        self.set_caching(False)
 
 
 class Comm(Protocol):
@@ -384,7 +291,7 @@ class Device:
         self._name = name
 
 
-class SignalDevice(Readable, Movable, Subscribable, Device):
+class SignalDevice(Device, Readable, Movable, Subscribable):
     def __init__(self, signal: Signal, name: str) -> None:
         self.signal = signal
         self._name = name
@@ -413,6 +320,15 @@ class SignalDevice(Readable, Movable, Subscribable, Device):
 
     def clear_sub(self, function: Callback[Dict[str, Reading]]) -> None:
         self._callback_monitors[function].close()
+
+
+DeviceT = TypeVar("DeviceT", bound=Device)
+
+
+def named(device: DeviceT, name: str) -> DeviceT:
+    if name:
+        device.name = name
+    return device
 
 
 class NamedDevices:

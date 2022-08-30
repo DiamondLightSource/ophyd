@@ -1,21 +1,13 @@
 from enum import Enum
-from typing import Callable, Dict, Sequence, Type
+from typing import Any, Dict, Sequence, Tuple, Type
 
-from aioca import (
-    FORMAT_CTRL,
-    FORMAT_TIME,
-    Subscription,
-    caget,
-    camonitor,
-    caput,
-    connect,
-)
+from aioca import FORMAT_CTRL, FORMAT_TIME, caget, camonitor, caput, connect
 from aioca.types import AugmentedValue, Dbr
 from bluesky.protocols import Descriptor, Dtype, Reading
 from epicscorelibs.ca import dbr
 
-from .core import T
-from .pv import Pv
+from .core import Monitor, T
+from .pv import Pv, PvCallback
 
 dbr_to_dtype: Dict[Dbr, Dtype] = {
     dbr.DBR_STRING: "string",
@@ -81,11 +73,17 @@ def make_ca_descriptor(source: str, value: AugmentedValue) -> Descriptor:
     return dict(source=source, dtype=dtype, shape=shape)
 
 
-def make_ca_reading(value: AugmentedValue, converter: CaValueConverter) -> Reading:
-    return dict(
-        value=converter.from_ca(value),
-        timestamp=value.timestamp,
-        alarm_severity=-1 if value.severity > 2 else value.severity,
+def make_ca_reading(
+    value: AugmentedValue, converter: CaValueConverter
+) -> Tuple[Reading, Any]:
+    conv_value = converter.from_ca(value)
+    return (
+        dict(
+            value=conv_value,
+            timestamp=value.timestamp,
+            alarm_severity=-1 if value.severity > 2 else value.severity,
+        ),
+        conv_value,
     )
 
 
@@ -117,23 +115,16 @@ class PvCa(Pv[T]):
 
     async def get_reading(self) -> Reading:
         value = await caget(self.pv, datatype=self.ca_datatype, format=FORMAT_TIME)
-        return make_ca_reading(value, self.converter)
+        return make_ca_reading(value, self.converter)[0]
 
     async def get_value(self) -> T:
         value = await caget(self.pv, datatype=self.ca_datatype)
         return self.converter.from_ca(value)
 
-    def monitor_reading(self, callback: Callable[[Reading], None]) -> Subscription:
+    def monitor_reading_value(self, callback: PvCallback[T]) -> Monitor:
         return camonitor(
             self.pv,
-            lambda v: callback(make_ca_reading(v, self.converter)),
+            lambda v: callback(*make_ca_reading(v, self.converter)),
             datatype=self.ca_datatype,
             format=FORMAT_TIME,
-        )
-
-    def monitor_value(self, callback: Callable[[T], None]) -> Subscription:
-        return camonitor(
-            self.pv,
-            lambda v: callback(self.converter.from_ca(v)),
-            datatype=self.ca_datatype,
         )

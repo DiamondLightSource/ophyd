@@ -1,15 +1,16 @@
 import asyncio
-from typing import cast
+from typing import Dict, cast
 from unittest.mock import Mock, call
 
 import pytest
+from bluesky.protocols import Reading
 
-from ophyd.v2.core import CommsConnector, NamedDevices
+from ophyd.v2.core import CommsConnector, NamedDevices, SignalDevice
 from ophyd.v2.pvsim import PvSim
 from ophyd_epics_devices import motor
 
 # Long enough for multiple asyncio event loop cycles to run so
-# all the taks have a chance to run
+# all the tasks have a chance to run
 A_BIT = 0.001
 
 
@@ -95,3 +96,19 @@ async def test_read_motor(sim_motor: motor.devices.Motor):
     readback.set_value(0.1)
     assert (await sim_motor.read())["sim_motor-readback"]["value"] == 0.1
     assert await sim_motor.describe()
+
+
+async def test_set_velocity(sim_motor: motor.devices.Motor):
+    v: SignalDevice = sim_motor.velocity
+    assert (await v.describe())["sim_motor-velocity"][
+        "source"
+    ] == "sim://BLxxI-MO-TABLE-01:X.VELO"
+    q: asyncio.Queue[Dict[str, Reading]] = asyncio.Queue()
+    v.subscribe(q.put_nowait)
+    assert (await q.get())["sim_motor-velocity"]["value"] == 1.0
+    await v.set(2.0)
+    assert (await q.get())["sim_motor-velocity"]["value"] == 2.0
+    v.clear_sub(q.put_nowait)
+    await v.set(3.0)
+    assert (await v.read())["sim_motor-velocity"]["value"] == 3.0
+    assert q.empty()

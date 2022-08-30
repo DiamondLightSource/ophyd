@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Type
+from typing import Callable, Generic, Type
 
 from bluesky.protocols import Descriptor, Reading
 
-from .core import Callback, Monitor, T
+from .core import Monitor, T
+
+PvCallback = Callable[[Reading, T], None]
 
 
 class Pv(ABC, Generic[T]):
@@ -37,12 +39,8 @@ class Pv(ABC, Generic[T]):
         """The current value"""
 
     @abstractmethod
-    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
+    def monitor_reading_value(self, callback: PvCallback[T]) -> Monitor:
         """Observe changes to the current value, timestamp and severity."""
-
-    @abstractmethod
-    def monitor_value(self, callback: Callback[T]) -> Monitor:
-        """Observe changes to the current value."""
 
 
 DISCONNECTED_ERROR = NotImplementedError(
@@ -70,10 +68,7 @@ class DisconnectedPv(Pv):
     async def get_value(self) -> T:
         raise DISCONNECTED_ERROR
 
-    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
-        raise DISCONNECTED_ERROR
-
-    def monitor_value(self, callback: Callback[T]) -> Monitor:
+    def monitor_reading_value(self, callback: PvCallback[T]) -> Monitor:
         raise DISCONNECTED_ERROR
 
 

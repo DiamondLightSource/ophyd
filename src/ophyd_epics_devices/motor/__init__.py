@@ -1,12 +1,11 @@
+from ophyd.v2.core import named
+
 from . import comms, devices
 
 
-def motor(signal_prefix: str, name=None) -> devices.Motor:
+def motor(signal_prefix: str, name="") -> devices.Motor:
     c = comms.MotorComm(signal_prefix)
-    d = devices.Motor(c)
-    if name:
-        d.name = name
-    return d
+    return named(devices.Motor(c), name)
 
 
 EpicsMotor = motor

@@ -15,10 +15,14 @@ from ophyd.v2.pvca import PvCa
 RECORDS = str(Path(__file__).parent / "records.db")
 PV_PREFIX = "".join(random.choice(string.ascii_uppercase) for _ in range(12))
 LONGOUT = PV_PREFIX + "longout"
-ENUM = PV_PREFIX + "enum"
+AO = PV_PREFIX + "ao"
+MBBO = PV_PREFIX + "mbbo"
+MBBI = PV_PREFIX + "mbbi"
 
-
-@pytest.fixture
+# Use a module level fixture so it's fast to run tests. This means we need to
+# add a record for every PV that we will modify in tests to stop tests
+# interfering with each other
+@pytest.fixture(scope="module")
 def ioc():
     process = subprocess.Popen(
         [
@@ -46,19 +50,19 @@ def ioc():
 
 
 async def test_ca_signal_get_put_long(ioc):
-    pv = PvCa(LONGOUT, int)
+    pv = PvCa(AO, float)
     await pv.connect()
-    assert (await pv.get_value()) == 42
-    await pv.put(43)
-    assert (await pv.get_value()) == 43
-    await pv.put(44)
+    assert (await pv.get_value()) == 3.141
+    await pv.put(43.5)
+    assert (await pv.get_value()) == 43.5
+    await pv.put(44.1)
     assert (await pv.get_descriptor()) == {
-        "source": f"ca://{LONGOUT}",
-        "dtype": "integer",
+        "source": f"ca://{AO}",
+        "dtype": "number",
         "shape": [],
     }
     assert (await pv.get_reading()) == {
-        "value": 44,
+        "value": 44.1,
         "timestamp": pytest.approx(time.time(), rel=0.1),
         "alarm_severity": 0,
     }
@@ -76,7 +80,7 @@ async def test_ca_signal_monitoring(ioc):
     t = asyncio.create_task(prod_pv())
 
     q = asyncio.Queue()
-    m = pv.monitor_value(q.put_nowait)
+    m = pv.monitor_reading_value(lambda r, v: q.put_nowait(v))
     for expected in range(42, 46):
         v = await asyncio.wait_for(q.get(), timeout=0.5)
         assert v == expected
@@ -92,7 +96,7 @@ class MyEnum(Enum):
 
 
 async def test_ca_signal_get_put_enum(ioc):
-    pv = PvCa(ENUM, MyEnum)
+    pv = PvCa(MBBO, MyEnum)
     await pv.connect()
     assert (await pv.get_value()) == MyEnum.b
     await pv.put(MyEnum.c)
@@ -105,27 +109,28 @@ class BadEnum(Enum):
 
 
 async def test_ca_signal_with_bad_enum(ioc):
-    pv = PvCa(ENUM, BadEnum)
+    pv = PvCa(MBBO, BadEnum)
     with pytest.raises(AssertionError) as cm:
         await pv.connect()
     assert str(cm.value) == "Enum strings {'Baa'} not in ['Aaa', 'Bbb', 'Ccc']"
 
 
 async def test_ca_enum_monitor_reading(ioc):
-    pv = PvCa(ENUM, MyEnum)
-    pv_int = PvCa(ENUM, int)
+    pv = PvCa(MBBI, MyEnum)
+    pv_int = PvCa(MBBI, int)
     await asyncio.gather(pv.connect(), pv_int.connect())
 
     q = asyncio.Queue()
-    m = pv.monitor_reading(q.put_nowait)
+    m = pv.monitor_reading_value(lambda r, v: q.put_nowait((r, v)))
     v1 = await q.get()
-    assert v1 == {
+    assert v1[0] == {
         "value": MyEnum.b,
         "timestamp": pytest.approx(time.time(), rel=0.1),
         "alarm_severity": 0,
     }
+
     await pv_int.put(2)
     v2 = await q.get()
-    assert v2["value"] == MyEnum.c
+    assert v2[1] == MyEnum.c
 
     m.close()
