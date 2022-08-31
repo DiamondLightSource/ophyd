@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable, Dict, Generic, List, Sequence, Type, TypeVar
+from typing import Dict, Generic, List, Sequence, Type, TypeVar
 
 from bluesky.protocols import Descriptor, Dtype, Reading
 from typing_extensions import Protocol
 
-from .core import T
-from .pv import Pv
+from .core import Monitor, T
+from .pv import Pv, PvCallback
 
 primitive_dtypes: Dict[type, Dtype] = {
     str: "string",
@@ -29,21 +29,6 @@ def make_sim_descriptor(source: str, value) -> Descriptor:
     return dict(source=source, dtype=dtype, shape=shape)
 
 
-def make_sim_reading(value) -> Reading:
-    return dict(value=value, timestamp=time.time())
-
-
-class SimMonitor:
-    def __init__(self, listeners: List[SimMonitor], callback: Callable, value):
-        self.listeners = listeners
-        self.callback = callback
-        self.listeners.append(self)
-        callback(value)
-
-    def close(self):
-        self.listeners.remove(self)
-
-
 ValueT = TypeVar("ValueT", contravariant=True)
 
 
@@ -52,13 +37,26 @@ class PutHandler(Protocol, Generic[ValueT]):
         pass
 
 
+class SimMonitor(Generic[T]):
+    def __init__(self, callback: PvCallback[T], listeners: List[SimMonitor[T]]):
+        self.callback = callback
+        self._listeners = listeners
+        self._listeners.append(self)
+
+    def close(self):
+        self._listeners.remove(self)
+
+
 class PvSim(Pv[T]):
+    value: T
+    timestamp: float
+
     def __init__(self, pv: str, datatype: Type[T]):
         super().__init__(pv, datatype)
-        self.value = datatype()
         self.put_proceeds = asyncio.Event()
         self.put_proceeds.set()
-        self.listeners: List[SimMonitor] = []
+        self._listeners: List[SimMonitor[T]] = []
+        self.set_value(datatype())
 
     @property
     def source(self) -> str:
@@ -75,19 +73,22 @@ class PvSim(Pv[T]):
     async def get_descriptor(self) -> Descriptor:
         return make_sim_descriptor(self.source, self.value)
 
+    @property
+    def reading(self) -> Reading:
+        return dict(value=self.value, timestamp=self.timestamp)
+
     async def get_reading(self) -> Reading:
-        return make_sim_reading(self.value)
+        return self.reading
 
     async def get_value(self) -> T:
         return self.value
 
-    def monitor_reading(self, cb: Callable[[Reading], None]) -> SimMonitor:
-        return SimMonitor(self.listeners, lambda v: cb(make_sim_reading(v)), self.value)
-
-    def monitor_value(self, cb: Callable[[T], None]) -> SimMonitor:
-        return SimMonitor(self.listeners, cb, self.value)
+    def monitor_reading_value(self, callback: PvCallback[T]) -> Monitor:
+        callback(self.reading, self.value)
+        return SimMonitor(callback, self._listeners)
 
     def set_value(self, value: T) -> None:
         self.value = value
-        for listener in self.listeners:
-            listener.callback(value)
+        self.timestamp = time.time()
+        for rl in self._listeners:
+            rl.callback(self.reading, self.value)

@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 from enum import Enum
 from typing import (
     Any,
-    AsyncGenerator,
     Callable,
     Dict,
     Generic,
+    List,
     Optional,
     Tuple,
     Type,
@@ -17,8 +19,8 @@ from typing import (
 from bluesky.protocols import Descriptor, Reading
 from typing_extensions import Protocol, get_args, get_origin
 
-from .core import Callback, CommsConnector, SignalR, SignalW, T
-from .pv import DISCONNECTED_PV, Monitor, Pv, uninstantiatable_pv
+from .core import Callback, CommsConnector, Monitor, SignalR, SignalW, T
+from .pv import DISCONNECTED_PV, Pv, uninstantiatable_pv
 from .pvsim import PvSim
 
 try:
@@ -38,49 +40,128 @@ class _WithDatatype(Generic[T], _WithPvCls):
         self._datatype = datatype
 
 
-V = TypeVar("V")
+class EpicsSignalMonitor(Generic[T]):
+    def __init__(
+        self,
+        callback: Callback[T],
+        listeners: List[EpicsSignalMonitor[T]],
+        on_close: Callable[[], None],
+    ) -> None:
+        self.callback = callback
+        self._listeners = listeners
+        listeners.append(self)
+        self._on_close = on_close
+
+    def close(self):
+        self._listeners.remove(self)
+        self._on_close()
 
 
-async def observe_monitor(
-    monitor: Callable[[Callback[V]], Monitor]
-) -> AsyncGenerator[V, None]:
-    q: asyncio.Queue[V] = asyncio.Queue()
-    m = monitor(q.put_nowait)
-    try:
-        while True:
-            yield await q.get()
-    finally:
-        m.close()
+M = TypeVar("M")
 
 
-class _EpicsSignalR(SignalR[T], _WithDatatype):
+class PvCache(Generic[T]):
+    def __init__(self, pv: Pv[T]):
+        self.pv = pv
+        self.monitor: Optional[Monitor] = None
+        self.valid = asyncio.Event()
+        self.value: Optional[T] = None
+        self.reading: Optional[Reading] = None
+        self.value_listeners: List[EpicsSignalMonitor[T]] = []
+        self.reading_listeners: List[EpicsSignalMonitor[Reading]] = []
+
+    def _callback(self, reading: Reading, value: T):
+        self.reading = reading
+        self.value = value
+        self.valid.set()
+        for value_listener in self.value_listeners:
+            value_listener.callback(self.value)
+        for reading_listener in self.reading_listeners:
+            reading_listener.callback(self.reading)
+
+    async def get_value(self) -> T:
+        await self.valid.wait()
+        assert self.value is not None, "Monitor not working"
+        return self.value
+
+    async def get_reading(self) -> Reading:
+        await self.valid.wait()
+        assert self.reading is not None, "Monitor not working"
+        return self.reading
+
+    def _close_surplus_monitor(self):
+        if not (self.value_listeners or self.reading_listeners):
+            # No-one listening
+            assert self.monitor, "Why is there no monitor"
+            self.monitor.close()
+            self.monitor = None
+
+    def _create_monitor(
+        self,
+        callback: Callback[M],
+        listeners: List[EpicsSignalMonitor[M]],
+        latest: Optional[M],
+    ) -> EpicsSignalMonitor[M]:
+        m = EpicsSignalMonitor(callback, listeners, self._close_surplus_monitor)
+        if latest is not None:
+            callback(latest)
+        if not self.monitor:
+            self.monitor = self.pv.monitor_reading_value(self._callback)
+        return m
+
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
+        return self._create_monitor(callback, self.reading_listeners, self.reading)
+
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
+        return self._create_monitor(callback, self.value_listeners, self.value)
+
+
+class _EpicsSignalR(SignalR[T], _WithDatatype[T]):
     read_pv: Pv[T] = DISCONNECTED_PV
+    _cache: Optional[PvCache[T]] = None
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str:
         return self.read_pv.source
 
     async def get_descriptor(self) -> Descriptor:
         return await self.read_pv.get_descriptor()
 
-    async def get_reading(self) -> Reading:
-        return await self.read_pv.get_reading()
+    def _get_pv(self, cached: Optional[bool]) -> Union[Pv[T], PvCache[T]]:
+        # If we don't specify caching, choose it if there is a cache
+        if cached is None:
+            cached = bool(self._cache and self._cache.monitor)
+        if cached:
+            assert (
+                self._cache and self._cache.monitor
+            ), f"{self.source} not being monitored"
+            return self._cache
+        else:
+            return self.read_pv
 
-    async def get_value(self) -> T:
-        return await self.read_pv.get_value()
+    async def get_reading(self, cached: Optional[bool] = None) -> Reading:
+        return await self._get_pv(cached).get_reading()
 
-    def observe_reading(self) -> AsyncGenerator[Reading, None]:
-        return observe_monitor(self.read_pv.monitor_reading)
+    async def get_value(self, cached: Optional[bool] = None) -> T:
+        return await self._get_pv(cached).get_value()
 
-    def observe_value(self) -> AsyncGenerator[T, None]:
-        return observe_monitor(self.read_pv.monitor_value)
+    def _get_cache(self) -> PvCache:
+        if self._cache is None:
+            self._cache = PvCache(self.read_pv)
+        return self._cache
+
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
+        return self._get_cache().monitor_reading(callback)
+
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
+        return self._get_cache().monitor_value(callback)
 
 
-class _EpicsSignalW(SignalW[T], _WithDatatype):
+class _EpicsSignalW(SignalW[T], _WithDatatype[T]):
     write_pv: Pv[T] = DISCONNECTED_PV
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str:
         return self.write_pv.source
 
     async def put(self, value: T, wait=True):
@@ -142,7 +223,7 @@ class EpicsSignalX(_WithPvCls):
 
 class PvMode(Enum):
     ca = PvCa
-    pva = PvCa
+    pva = PvCa  # TODO change to PvPva when Alan's written it
 
 
 _default_pv_mode = PvMode.ca
@@ -155,11 +236,11 @@ def set_default_pv_mode(pv_mode: PvMode):
 
 class EpicsComm:
     def __init__(self, pv_prefix: str):
-        self.__signals__, self._pv_prefix = make_epics_signals(self, pv_prefix)
+        self._signals_, self._pv_prefix = make_epics_signals(self, pv_prefix)
         self._connector = get_epics_connector(self)
         CommsConnector.schedule_connect(self)
 
-    async def __connect__(self):
+    async def _connect_(self):
         await self._connector(self, self._pv_prefix)
 
     def __repr__(self) -> str:

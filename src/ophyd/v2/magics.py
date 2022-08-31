@@ -1,24 +1,43 @@
-# import asyncio
-# from typing import Any, Dict
+from typing import Any, List
 
-# from IPython.core.magic import needs_local_scope, register_line_magic
+from bluesky import RunEngine
+from bluesky import plan_stubs as bps
+from IPython.core.magic import Magics, line_magic, magics_class
 
-# from .core import Ability
+
+def print_rd(obj):
+    value = yield from bps.rd(obj)
+    print(value)
 
 
-# @register_line_magic
-# @needs_local_scope
-# def pos(line: str, local_ns: Dict[str, Any]):
-#     parts = line.split(" ")
-#     assert len(parts) in [0, 1], parts
-#     path = parts[0].split(".")
-#     obj = local_ns[path.pop()]
-#     while path:
-#         obj = getattr(obj, path.pop())
-#         if isinstance(obj, Ability):
-#             obj = obj.device
-#     if len(parts) == 0:
-#         task = asyncio.create_task(obj.get())
-#     else:
-#         task = asyncio.create_task(obj.set(parts[1]))
-#     return task.result()
+@magics_class
+class OphydMagics(Magics):
+    """IPython magics for ophyd.
+
+    To install:
+
+        from IPython import get_ipython
+        get_ipython().register_magics(OphydMagics)
+    """
+
+    @property
+    def RE(self) -> RunEngine:
+        return self.shell.user_ns["RE"]
+
+    def eval(self, arg: str) -> Any:
+        return eval(arg, self.shell.user_ns)
+
+    def eval_args(self, line: str) -> List:
+        return [eval(arg, self.shell.user_ns) for arg in line.split()]
+
+    @line_magic
+    def mov(self, line: str):
+        self.RE(bps.mov(*self.eval_args(line)))
+
+    @line_magic
+    def movr(self, line: str):
+        self.RE(bps.movr(*self.eval_args(line)))
+
+    @line_magic
+    def rd(self, line: str):
+        self.RE(print_rd(self.eval(line)))

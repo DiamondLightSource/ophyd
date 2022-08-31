@@ -8,7 +8,7 @@ ophyd = {editable = true, extras = ["dev"], path = "."}
 
 [packages]
 ophyd = {editable = true, path = "."}
-bluesky = {editable = true, git = "https://github.com/bluesky/bluesky.git"}
+bluesky = {editable = true, git = "https://github.com/bluesky/bluesky.git@20912cb"}
 epicscorelibs = {git = "https://github.com/mdavidsaver/epicscorelibs.git"}
 
 [scripts]

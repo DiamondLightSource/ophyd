@@ -19,7 +19,14 @@ from typing import (
     cast,
 )
 
-from bluesky.protocols import Descriptor, Movable, Readable, Reading, Status
+from bluesky.protocols import (
+    Descriptor,
+    Movable,
+    Readable,
+    Reading,
+    Status,
+    Subscribable,
+)
 from bluesky.run_engine import call_in_bluesky_event_loop
 from typing_extensions import Protocol
 
@@ -65,6 +72,9 @@ class AsyncStatus(Status, Generic[T]):
         else:
             return True
 
+    def __await__(self):
+        return self.task.__await__()
+
     def _run_callbacks(self, task: asyncio.Task):
         if not task.cancelled():
             for callback in self._callbacks:
@@ -85,13 +95,30 @@ def _fail(self, other, *args, **kwargs):
         return NotImplemented
 
 
+class Monitor(Protocol):
+    def close(self):
+        ...
+
+
+async def observe_monitor(
+    monitor: Callable[[Callback[T]], Monitor]
+) -> AsyncGenerator[T, None]:
+    q: asyncio.Queue[T] = asyncio.Queue()
+    m = monitor(q.put_nowait)
+    try:
+        while True:
+            yield await q.get()
+    finally:
+        m.close()
+
+
 class Signal(ABC):
     """Signals are like ophyd Signals, but async"""
 
     @property
     @abstractmethod
-    def source(self) -> Optional[str]:
-        """Like ca://PV_PREFIX:SIGNAL, or None if not set"""
+    def source(self) -> str:
+        """Like ca://PV_PREFIX:SIGNAL, or "" if not set"""
 
     __lt__ = __le__ = __eq__ = __ge__ = __gt__ = __ne__ = _fail
 
@@ -104,28 +131,24 @@ class SignalR(Signal, Generic[T]):
         """Metadata like source, dtype, shape, precision, units"""
 
     @abstractmethod
-    async def get_reading(self) -> Reading:
+    async def get_reading(self, cached: Optional[bool] = None) -> Reading:
         """The current value, timestamp and severity"""
 
-    async def get_value(self) -> T:
+    @abstractmethod
+    async def get_value(self, cached: Optional[bool] = None) -> T:
         """The current value"""
-        reading = await self.get_reading()
-        return reading["value"]
 
     @abstractmethod
-    async def observe_reading(self) -> AsyncGenerator[Reading, None]:
+    def monitor_reading(self, callback: Callback[Reading]) -> Monitor:
         """Observe changes to the current value, timestamp and severity.
 
         First update is the current value"""
-        return
-        yield
 
-    async def observe_value(self) -> AsyncGenerator[T, None]:
+    @abstractmethod
+    def monitor_value(self, callback: Callback[T]) -> Monitor:
         """Observe changes to the current value.
 
         First update is the current value"""
-        async for reading in self.observe_reading():
-            yield reading["value"]
 
 
 class SignalW(Signal, Generic[T]):
@@ -136,71 +159,52 @@ class SignalW(Signal, Generic[T]):
         """Put a value to the control system."""
 
 
-def monitor_observable(
-    observable: AsyncGenerator[T, None], callback: Callable[[T], None]
-) -> asyncio.Task:
-    """Monitors a signal, calling callback on new value
-
-    Returns:
-        Task with a cancel() method
-    """
-
-    async def do_observe():
-        async for value in observable:
-            callback(value)
-
-    return asyncio.create_task(do_observe())
+K = TypeVar("K")
+V = TypeVar("V")
 
 
-class _CachedReading:
-    """A Reading that you can wait on"""
-
-    def __init__(self) -> None:
-        self._valid = asyncio.Event()
-        self._reading: Optional[Reading] = None
-
-    async def update(self, signal: SignalR):
-        try:
-            async for reading in signal.observe_reading():
-                self._reading = reading
-                self._valid.set()
-        except asyncio.CancelledError:
-            return
-        except Exception:
-            logging.exception(f"Caching {signal.source} raised exception")
-            raise
-
-    async def get(self) -> Reading:
-        await self._valid.wait()
-        assert self._reading is not None, "update() not working"
-        return self._reading
+async def gather_dict(d: Dict[K, Awaitable[V]]) -> Dict[K, V]:
+    results = await asyncio.gather(*d.values())
+    return dict(zip(d, results))
 
 
-class CachedSignal:
-    """Subscribe to value of a signal while this object exists"""
+def do_nothing(value):
+    pass
 
-    def __init__(self, signal: SignalR):
-        self._signal = signal
-        self._descriptor: Optional[Descriptor] = None
-        # Put _reading in a different class so no reference loops, so
-        # __del__ will fire when we lose the ref to a CachedSignal
-        self._reading = _CachedReading()
-        self._task = asyncio.create_task(self._reading.update(signal))
 
-    async def get_reading(self) -> Reading:
-        return await self._reading.get()
+class SignalCollection:
+    """Create a group of signals to be read together"""
 
-    async def get_descriptor(self) -> Descriptor:
-        if self._descriptor is None:
-            self._descriptor = await self._signal.get_descriptor()
-        return self._descriptor
+    def __init__(self, **signals: SignalR):
+        self._signals = signals
+        self._monitors: Set[Monitor] = set()
+
+    def set_caching(self, caching: bool):
+        if caching:
+            assert not self._monitors, "Already caching"
+            for v in self._signals.values():
+                # Just so the value will be cached on read
+                self._monitors.add(v.monitor_reading(do_nothing))
+        else:
+            while self._monitors:
+                self._monitors.pop().close()
+
+    async def describe(self, name_prefix: str = "") -> Dict[str, Descriptor]:
+        return await gather_dict(
+            {name_prefix + k: sig.get_descriptor() for k, sig in self._signals.items()}
+        )
+
+    async def read(self, name_prefix: str = "") -> Dict[str, Reading]:
+        return await gather_dict(
+            {name_prefix + k: sig.get_reading() for k, sig in self._signals.items()}
+        )
 
     def __del__(self):
-        self._task.cancel()
+        self.set_caching(False)
 
 
 class Comm(Protocol):
-    async def __connect__(self):
+    async def _connect_(self):
         ...
 
 
@@ -236,7 +240,7 @@ class CommsConnector:
         CommsConnector._instance = None
         # Schedule coros as tasks
         task_comms = {
-            asyncio.create_task(comm.__connect__()): comm for comm in self._to_connect
+            asyncio.create_task(comm._connect_()): comm for comm in self._to_connect
         }
         # Wait for all the signals to have finished
         done, pending = await asyncio.wait(task_comms, timeout=self._timeout)
@@ -287,10 +291,11 @@ class Device:
         self._name = name
 
 
-class SignalDevice(Readable, Movable, Device):
+class SignalDevice(Device, Readable, Movable, Subscribable):
     def __init__(self, signal: Signal, name: str) -> None:
         self.signal = signal
         self._name = name
+        self._callback_monitors: Dict[Callback[Dict[str, Reading]], Monitor] = {}
 
     async def read(self) -> Dict[str, Reading]:
         assert isinstance(self.signal, SignalR), f"Signal {self.name} not readable"
@@ -304,6 +309,26 @@ class SignalDevice(Readable, Movable, Device):
         assert isinstance(self.signal, SignalW), f"Signal {self.name} not writeable"
         status = AsyncStatus(self.signal.put(value))
         return status
+
+    def subscribe(self, function: Callback[Dict[str, Reading]]):
+        assert isinstance(self.signal, SignalR), f"Signal {self.name} not readable"
+
+        def callback(reading: Reading):
+            function({self.name: reading})
+
+        self._callback_monitors[function] = self.signal.monitor_reading(callback)
+
+    def clear_sub(self, function: Callback[Dict[str, Reading]]) -> None:
+        self._callback_monitors[function].close()
+
+
+DeviceT = TypeVar("DeviceT", bound=Device)
+
+
+def named(device: DeviceT, name: str) -> DeviceT:
+    if name:
+        device.name = name
+    return device
 
 
 class NamedDevices:
@@ -340,8 +365,9 @@ class NamedDevices:
     def __exit__(self, type, value, traceback):
         for name, obj in self._caller_locals().items():
             if name not in self._names_on_enter and isinstance(obj, Device):
-                # We got a device, name it
-                obj.name = name
+                # We got a device, name it if it isn't named already
+                if not obj.name:
+                    obj.name = name
 
     async def __aexit__(self, type, value, traceback):
         return self.__exit__(type, value, traceback)
