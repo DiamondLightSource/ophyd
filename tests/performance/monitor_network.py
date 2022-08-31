@@ -20,21 +20,26 @@ def main():
 
     dummy_data = psutil.net_io_counters(pernic=True)
     network1 = psutil.net_io_counters(pernic=True)
+    #time.sleep(1.0)
     #logging.info("{}".format(network1))
+    network1 = psutil.net_io_counters(pernic=True)
 
     index = 0
     while index < time_delay:
         index += 1
+        network1 = psutil.net_io_counters(pernic=True)
         time.sleep(1.0)
         network2 = psutil.net_io_counters(pernic=True)
-        #logging.info("{}".format(network2))
+            #logging.info("{}".format(network2))
 
+#        logging.info("{}".format(network1[args.interface]))
+#        logging.info("{}".format(network2[args.interface]))
         if_start = network1[args.interface]
         if_end = network2[args.interface]
         total_recv = if_end.bytes_recv - if_start.bytes_recv
-        av_recv = total_recv / index / 1024
+        av_recv = total_recv / 1024
         total_sent = if_end.bytes_sent - if_start.bytes_sent
-        av_sent = total_sent / index / 1024
+        av_sent = total_sent / 1024
 
         logging.info("KBytes sent per second: {}".format(av_sent))
         logging.info("KBytes recv per second: {}".format(av_recv))
