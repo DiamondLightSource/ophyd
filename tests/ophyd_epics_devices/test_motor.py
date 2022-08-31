@@ -98,8 +98,8 @@ async def test_read_motor(sim_motor: motor.devices.Motor):
     assert await sim_motor.describe()
 
 
-async def test_set_velocity(sim_motor: motor.devices.Motor):
-    v: SignalDevice = sim_motor.velocity
+async def test_set_velocity(sim_motor: motor.devices.Motor) -> None:
+    v: SignalDevice = sim_motor.velocity  # type: ignore
     assert (await v.describe())["sim_motor-velocity"][
         "source"
     ] == "sim://BLxxI-MO-TABLE-01:X.VELO"

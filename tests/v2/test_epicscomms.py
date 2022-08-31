@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable
+from typing import Callable, cast
 from unittest.mock import Mock
 
 import pytest
@@ -92,7 +92,7 @@ class MockPv(Pv[T]):
 async def test_signal_collection_cached_read() -> None:
     sig = EpicsSignalRO(pv_cls=MockPv, datatype=float)
     await sig.connect("blah")
-    pv: MockPv = sig.read_pv
+    pv = cast(MockPv, sig.read_pv)
     sc = SignalCollection(sig=sig)
     # To start there is no monitoring
     assert None is sig._cache

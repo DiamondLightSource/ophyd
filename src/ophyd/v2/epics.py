@@ -116,7 +116,7 @@ class PvCache(Generic[T]):
         return self._create_monitor(callback, self.value_listeners, self.value)
 
 
-class _EpicsSignalR(SignalR[T], _WithDatatype):
+class _EpicsSignalR(SignalR[T], _WithDatatype[T]):
     read_pv: Pv[T] = DISCONNECTED_PV
     _cache: Optional[PvCache[T]] = None
 
@@ -157,7 +157,7 @@ class _EpicsSignalR(SignalR[T], _WithDatatype):
         return self._get_cache().monitor_value(callback)
 
 
-class _EpicsSignalW(SignalW[T], _WithDatatype):
+class _EpicsSignalW(SignalW[T], _WithDatatype[T]):
     write_pv: Pv[T] = DISCONNECTED_PV
 
     @property
