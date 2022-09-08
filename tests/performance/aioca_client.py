@@ -18,7 +18,7 @@ class PVMonitors(object):
         sub_list = []
         # Build the PV subscription list
         for pv_index in range(args.number):
-            pv_name = '{}:AI{:05d}'.format(args.prefix, pv_index)
+            pv_name = '{}{:05d}'.format(args.prefix, pv_index)
             for monitor_index in range(args.monitors):
                 sub_list.append(pv_name)
         
@@ -30,7 +30,7 @@ class PVMonitors(object):
 def options():
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--number", default=1, help="Number of PVs to monitor (1)")
-    parser.add_argument("-p", "--prefix", default="TEST", help="Record name prefix (TEST)")
+    parser.add_argument("-p", "--prefix", default="TEST:AI", help="Record name prefix (TEST:AI)")
     parser.add_argument("-m", "--monitors", default=10, help="Number of monitors to place on each PV (10)")
     args = parser.parse_args()
     return args

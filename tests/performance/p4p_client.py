@@ -8,6 +8,7 @@ from p4p.client.thread import Context
 
 # Create the monitor callback
 def callback(value):
+    #logging.info("Value: {}".format(value))
     pass
 
 class PVMonitors(object):
@@ -19,7 +20,7 @@ class PVMonitors(object):
         self._subscriptions = []
         # Build the PV subscription list
         for pv_index in range(args.number):
-            pv_name = '{}:AI{:05d}'.format(args.prefix, pv_index)
+            pv_name = '{}{:05d}'.format(args.prefix, pv_index)
             for monitor_index in range(args.monitors):
                 self._subscriptions.append(self._ctxt.monitor(pv_name, callback))
 
@@ -31,7 +32,7 @@ class PVMonitors(object):
 def options():
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--number", default=1, help="Number of PVs to monitor (1)")
-    parser.add_argument("-p", "--prefix", default="TEST", help="Record name prefix (TEST)")
+    parser.add_argument("-p", "--prefix", default="TEST:AI", help="Record name prefix (TEST:AI)")
     parser.add_argument("-m", "--monitors", default=10, help="Number of monitors to place on each PV (10)")
     args = parser.parse_args()
     return args
@@ -46,7 +47,7 @@ def main():
     mon = PVMonitors()
     mon.monitor_pv(args)
     # Wait for 30 seconds
-    time.sleep(30.0)
+    time.sleep(300.0)
     logging.info("Closing monitors")
     mon.close_monitors()
 
