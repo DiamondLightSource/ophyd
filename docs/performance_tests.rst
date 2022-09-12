@@ -103,6 +103,23 @@ N PVs  Rate(Hz)  CPU(%)  Sent(kB/s)  Recv(kB/s)  N PVs   N Monitors  CPU(%)  Sen
 =====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
 
 
+Performance (Python IOC inbuilt Calc records / aioca - using FORMAT_TIME)
+*************************************************************************
+
+=====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
+Server                                           Client
+-----------------------------------------------  --------------------------------------------------
+N PVs  Rate(Hz)  CPU(%)  Sent(kB/s)  Recv(kB/s)  N PVs   N Monitors  CPU(%)  Sent(kB/s)  Recv(kB/s)
+=====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
+10     10        6       400         5           10      100         66      6           400
+10     10        4       580         2           10      1000        118     2           580 
+100    10        5       690         3           100     100         118     5           690
+1000   10        10      420         11          1000    1           70      10          420    
+1000   10        15      700         10          1000    10          115     10          700   
+-----  --------  ------  ----------  ----------  ------  ----------  ------  ----------  ----------
+=====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
+
+
 Performance (Python IOC inbuilt Calc records / p4p)
 ***************************************************
 
@@ -153,19 +170,20 @@ N PVs  Rate(Hz)  CPU(%)  Sent(kB/s)  Recv(kB/s)  N PVs   N Monitors  CPU(%)  Sen
 100    10        30      400         3           100     100         126     2           400
 100    10        100     400         3           100     1000        128     3           405
 1000   10        45      205         10          1000    1           60      8           202
+1000   10        55 (then drops to 25)           1000    10          126     2           400
+-----  --------  ------------------------------  ------  ----------  ------  ----------  ----------
+1000   10        105 Errors, not keeping up      1000    100         128     Unstable    Unstable
+-----  --------  ------------------------------  ------  ----------  ------  ----------  ----------
 =====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
 
 
-1000   10        55 (then drops to 25)           1000    10          126     2           400
-1000   10        105 Errors, not keeping up      1000    100         128     Unstable    Unstable
 
 
 
 Conclusion
 **********
 
-The Python IOC appears to be close to its limit with 100 records at 100Hz even without any clients connecting.
-There was a fair bit of instability, quite often ring buffer error messages occured when the client applications
-were started or stopped.
-These tests also do not verify that the 100Hz updates were received without loss by the clients as no verification
+The use of Python to update record values is less efficient (which is to be expected) than native datbase
+updates.  Using a pure python based server (p4p server) was also not as efficient. 
+These tests did not verify that the 100Hz updates were received without loss by the clients as no verification
 was made by the clients on the quantity or values received.

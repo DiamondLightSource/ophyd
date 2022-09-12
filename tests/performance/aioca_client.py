@@ -3,7 +3,7 @@ import asyncio
 import logging
 import time
 
-from aioca import caget, camonitor, caput, run
+from aioca import FORMAT_TIME, caget, camonitor, caput, run
 
 
 # Create the monitor callback
@@ -24,7 +24,7 @@ class PVMonitors(object):
         
         # Now set up the monitors
         logging.info("PV list: {}".format(sub_list))
-        self._subscriptions = camonitor(sub_list, callback)
+        self._subscriptions = camonitor(sub_list, callback, format=FORMAT_TIME)
 
 
 def options():
