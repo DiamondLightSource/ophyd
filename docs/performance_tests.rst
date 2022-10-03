@@ -177,6 +177,23 @@ N PVs  Rate(Hz)  CPU(%)  Sent(kB/s)  Recv(kB/s)  N PVs   N Monitors  CPU(%)  Sen
 =====  ========  ======  ==========  ==========  ======  ==========  ======  ==========  ==========
 
 
+Performance (Python IOC inbuilt Calc records and various clients)
+*****************************************************************
+
+=====  ========  =======  ==========  ======  =====================================================
+N PVs  Rate(Hz)  Client   N Monitors  CPU(%)  Notes
+=====  ========  =======  ==========  ======  =====================================================
+100    10        aioca    10          72
+100    10        p4p      10          63
+100    10        caproto  10          16      It looks like this does not create duplicate monitors
+100    10        pyepics  10          5       It looks like this does not create duplicate monitors
+1000   10        aioca    1           72
+1000   10        p4p      1           59
+1000   10        caproto  1           54
+1000   10        pyepics  1           35
+=====  ========  =======  ==========  ======  =====================================================
+
+
 
 
 
