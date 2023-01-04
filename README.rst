@@ -1,3 +1,6 @@
+ARCHIVED: work has moved to https://github.com/bluesky/ophyd
+=================
+
 ophyd
 ===========================
 
