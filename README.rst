@@ -10,9 +10,9 @@ Ideas for ophyd v2, will be merged with bluesky/ophyd when ready
 
 ============== ==============================================================
 PyPI           ``pip install ophyd``
-Source code    https://github.com/dls-controls/ophyd
-Documentation  https://dls-controls.github.io/ophyd
-Releases       https://github.com/dls-controls/ophyd/releases
+Source code    https://github.com/DiamondLightSource/ophyd
+Documentation  https://DiamondLightSource.github.io/ophyd
+Releases       https://github.com/DiamondLightSource/ophyd/releases
 ============== ==============================================================
 
 The main aims of this new version are:
@@ -21,16 +21,16 @@ The main aims of this new version are:
 - Make all Abilities async
 - Provide useful helpers for flyscans
 
-.. |code_ci| image:: https://github.com/dls-controls/ophyd/workflows/Code%20CI/badge.svg?branch=master
-    :target: https://github.com/dls-controls/ophyd/actions?query=workflow%3A%22Code+CI%22
+.. |code_ci| image:: https://github.com/DiamondLightSource/ophyd/workflows/Code%20CI/badge.svg?branch=master
+    :target: https://github.com/DiamondLightSource/ophyd/actions?query=workflow%3A%22Code+CI%22
     :alt: Code CI
 
-.. |docs_ci| image:: https://github.com/dls-controls/ophyd/workflows/Docs%20CI/badge.svg?branch=master
-    :target: https://github.com/dls-controls/ophyd/actions?query=workflow%3A%22Docs+CI%22
+.. |docs_ci| image:: https://github.com/DiamondLightSource/ophyd/workflows/Docs%20CI/badge.svg?branch=master
+    :target: https://github.com/DiamondLightSource/ophyd/actions?query=workflow%3A%22Docs+CI%22
     :alt: Docs CI
 
-.. |coverage| image:: https://codecov.io/gh/dls-controls/ophyd/branch/master/graph/badge.svg
-    :target: https://codecov.io/gh/dls-controls/ophyd
+.. |coverage| image:: https://codecov.io/gh/DiamondLightSource/ophyd/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/DiamondLightSource/ophyd
     :alt: Test Coverage
 
 .. |pypi_version| image:: https://img.shields.io/pypi/v/ophyd.svg
@@ -45,4 +45,4 @@ The main aims of this new version are:
     Anything below this line is used when viewing README.rst and will be replaced
     when included in index.rst
 
-See https://dls-controls.github.io/ophyd for more detailed documentation.
+See https://DiamondLightSource.github.io/ophyd for more detailed documentation.

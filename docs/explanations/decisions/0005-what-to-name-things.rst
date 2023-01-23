@@ -25,7 +25,7 @@ Decision
 - Things with Signals like position, readback are called Comms
 - There are factory functions that make Device + Comm composites like Ophyd.v1 Devices
 
-.. https://dls-controls.github.io/dls-python3-skeleton/master/how-to/excalidraw.html
+.. https://DiamondLightSource.github.io/dls-python3-skeleton/master/how-to/excalidraw.html
 
 .. raw:: html
 

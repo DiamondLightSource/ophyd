@@ -15,7 +15,7 @@ using ``autoclass`` and ``autofunction`` directives instead of
 .. data:: ophyd.__version__
     :type: str
 
-    Version number as calculated by https://github.com/dls-controls/versiongit
+    Version number as calculated by https://github.com/DiamondLightSource/versiongit
 
 .. automodule:: ophyd.v2
     :members:
