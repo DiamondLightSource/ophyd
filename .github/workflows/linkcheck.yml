@@ -11,6 +11,6 @@ jobs:
 
     steps:
       - name: Build docs
-        uses: dls-controls/pipenv-run-action@v1
+        uses: DiamondLightSource/pipenv-run-action@v1
         with:
           pipenv-run: docs -b linkcheck

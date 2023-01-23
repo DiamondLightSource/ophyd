@@ -20,7 +20,7 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: Run black, flake8, mypy
-        uses: dls-controls/pipenv-run-action@v1
+        uses: DiamondLightSource/pipenv-run-action@v1
         with:
           pipenv-run: lint
 
@@ -83,7 +83,7 @@ jobs:
 
     steps:
       - name: Setup repo and test
-        uses: dls-controls/pipenv-run-action@v1
+        uses: DiamondLightSource/pipenv-run-action@v1
         with:
           python-version: ${{ matrix.python }}
           pipenv-install: --dev --${{ matrix.pipenv }}
